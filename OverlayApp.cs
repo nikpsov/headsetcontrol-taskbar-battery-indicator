@@ -99,7 +99,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
         private int _displayStyle = 0; // 0 = Percent, 1 = Icon
 
         private int _currentBattery = -1;
-        private string _currentModel = "Загрузка...";
+        private string _currentModel = "Loading...";
         private bool _isCharging = false;
         private bool _hasWarnedLowBattery = false;
         private int _ticksSinceLastUpdate = 0;
@@ -167,7 +167,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
         {
             var contextMenu = new ContextMenu();
             
-            var hideItem = new MenuItem { Header = "Скрывать при отключении", IsChecked = _hideWhenDisconnected };
+            var hideItem = new MenuItem { Header = "Hide when disconnected", IsChecked = _hideWhenDisconnected };
             hideItem.Click += (s, e) => {
                 _hideWhenDisconnected = !_hideWhenDisconnected;
                 SaveSettings();
@@ -176,7 +176,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
                 UpdateBattery();
             };
 
-            var stylePercentItem = new MenuItem { Header = "Отображать в %", IsChecked = _displayStyle == 0 };
+            var stylePercentItem = new MenuItem { Header = "Show percentage", IsChecked = _displayStyle == 0 };
             stylePercentItem.Click += (s, e) => {
                 _displayStyle = 0;
                 SaveSettings();
@@ -185,7 +185,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
                 UpdateBattery();
             };
 
-            var styleIconItem = new MenuItem { Header = "Отображать как иконку", IsChecked = _displayStyle == 1 };
+            var styleIconItem = new MenuItem { Header = "Show as icon", IsChecked = _displayStyle == 1 };
             styleIconItem.Click += (s, e) => {
                 _displayStyle = 1;
                 SaveSettings();
@@ -194,7 +194,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
                 UpdateBattery();
             };
 
-            var autorunItem = new MenuItem { Header = "Запускать вместе с Windows", IsChecked = _runOnStartup };
+            var autorunItem = new MenuItem { Header = "Run at Windows startup", IsChecked = _runOnStartup };
             autorunItem.Click += (s, e) => {
                 _runOnStartup = !_runOnStartup;
                 SetRunOnStartup(_runOnStartup);
@@ -202,7 +202,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
                 UpdateTrayMenu();
             };
 
-            var exitItem = new MenuItem { Header = "Выход" };
+            var exitItem = new MenuItem { Header = "Exit" };
             exitItem.Click += (s, e) => Application.Current.Shutdown();
 
             contextMenu.Items.Add(hideItem);
@@ -285,7 +285,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
         {
             var menu = new System.Windows.Forms.ContextMenu();
             
-            var hideItem = new System.Windows.Forms.MenuItem("Скрывать при отключении");
+            var hideItem = new System.Windows.Forms.MenuItem("Hide when disconnected");
             hideItem.Checked = _hideWhenDisconnected;
             hideItem.Click += (s, e) => {
                 _hideWhenDisconnected = !_hideWhenDisconnected;
@@ -295,7 +295,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
                 UpdateBattery();
             };
 
-            var stylePercentItem = new System.Windows.Forms.MenuItem("Отображать в %");
+            var stylePercentItem = new System.Windows.Forms.MenuItem("Show percentage");
             stylePercentItem.Checked = _displayStyle == 0;
             stylePercentItem.Click += (s, e) => {
                 _displayStyle = 0;
@@ -305,7 +305,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
                 UpdateBattery();
             };
 
-            var styleIconItem = new System.Windows.Forms.MenuItem("Отображать как иконку");
+            var styleIconItem = new System.Windows.Forms.MenuItem("Show as icon");
             styleIconItem.Checked = _displayStyle == 1;
             styleIconItem.Click += (s, e) => {
                 _displayStyle = 1;
@@ -315,7 +315,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
                 UpdateBattery();
             };
 
-            var autorunItem = new System.Windows.Forms.MenuItem("Запускать вместе с Windows");
+            var autorunItem = new System.Windows.Forms.MenuItem("Run at Windows startup");
             autorunItem.Checked = _runOnStartup;
             autorunItem.Click += (s, e) => {
                 _runOnStartup = !_runOnStartup;
@@ -324,7 +324,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
                 UpdateTrayMenu();
             };
 
-            var exitItem = new System.Windows.Forms.MenuItem("Выход");
+            var exitItem = new System.Windows.Forms.MenuItem("Exit");
             exitItem.Click += (s, e) => Application.Current.Shutdown();
 
             menu.MenuItems.Add(hideItem);
@@ -814,7 +814,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
 
                                 if (_notifyIcon != null)
                                 {
-                                    string tip = string.Format("{0}: {1}%{2}", _currentModel, percent, _isCharging ? " (Заряжается)" : "");
+                                    string tip = string.Format("{0}: {1}%{2}", _currentModel, percent, _isCharging ? " (Charging)" : "");
                                     if (tip.Length > 63) tip = tip.Substring(0, 63);
                                     _notifyIcon.Text = tip;
                                 }
@@ -857,7 +857,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
                                     
                                 if (_notifyIcon != null)
                                 {
-                                    string tip = string.Format("{0}: Не подключены", _currentModel);
+                                    string tip = string.Format("{0}: Disconnected", _currentModel);
                                     if (tip.Length > 63) tip = tip.Substring(0, 63);
                                     _notifyIcon.Text = tip;
                                 }
@@ -892,7 +892,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
 
         private void ShowLowBatteryToast()
         {
-            var notif = new NotificationWindow("Низкий заряд батареи", string.Format("Осталось {0}% заряда наушников.", _currentBattery));
+            var notif = new NotificationWindow("Low Battery", string.Format("{0}% remaining.", _currentBattery));
             notif.Show();
         }
     }
@@ -964,7 +964,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
             
             var batteryText = new TextBlock
             {
-                Text = batteryPercent == -1 ? "Не подключены" : string.Format("Заряд: {0}%", batteryPercent),
+                Text = batteryPercent == -1 ? "Disconnected" : string.Format("Battery: {0}%", batteryPercent),
                 Foreground = isDark ? Brushes.LightGray : Brushes.DarkGray,
                 FontSize = 14,
                 Margin = new Thickness(0, 0, 0, 4)
@@ -974,18 +974,18 @@ namespace HeadsetControlTaskbarBatteryIndicator
             string timeString = "";
             if (batteryPercent == -1)
             {
-                timeString = "Наушники отключены или спят";
+                timeString = "Headset is disconnected or sleeping";
             }
             else if (isCharging)
             {
-                timeString = "Заряжается...";
+                timeString = "Charging...";
             }
             else
             {
                 double estimatedHours = 15.0 * (batteryPercent / 100.0);
                 int hours = (int)estimatedHours;
                 int minutes = (int)((estimatedHours - hours) * 60);
-                timeString = string.Format("Примерно {0} ч {1} мин", hours, minutes);
+                timeString = string.Format("Approx. {0}h {1}m", hours, minutes);
             }
 
             var timeText = new TextBlock
