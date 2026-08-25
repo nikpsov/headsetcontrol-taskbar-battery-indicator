@@ -9,8 +9,6 @@ Output/
 # Executables and libraries
 *.exe
 *.dll
-!headsetcontrol.exe
-!libhidapi-0.dll
 
 # User-specific files
 *.rsuser
