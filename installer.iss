@@ -1,5 +1,5 @@
 #define MyAppName "HeadsetControl Taskbar Battery Indicator"
-#define MyAppVersion "0.0.1"
+#define MyAppVersion "0.0.2"
 #define MyAppPublisher "nikpsov"
 #define MyAppURL "https://github.com/nikpsov/headsetcontrol-taskbar-battery-indicator"
 #define MyAppExeName "HeadsetControlTaskbarBatteryIndicator.exe"
@@ -39,7 +39,11 @@ Source: "headsetcontrol.exe"; DestDir: "{app}"; Flags: ignoreversion
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
-Name: "{userstartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: startup
+[Registry]
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "HeadsetControlTaskbarBatteryIndicator"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue; Tasks: startup
+
+[InstallDelete]
+Type: files; Name: "{userstartup}\{#MyAppName}.lnk"
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
