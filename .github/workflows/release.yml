@@ -49,7 +49,5 @@ jobs:
           files: |
             Output/HeadsetControlTaskbarBatteryIndicatorSetup.exe
             Output/HeadsetControlTaskbarBatteryIndicatorPortable.zip
-            HeadsetControlTaskbarBatteryIndicator.exe
-            HeadsetControlTaskbarBatteryIndicatorDebug.exe
           draft: false
           generate_release_notes: true
