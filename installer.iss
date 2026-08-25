@@ -34,7 +34,6 @@ Name: "startup"; Description: "Run at Windows startup"; GroupDescription: "Addit
 [Files]
 Source: "bin\Release\net48\HeadsetControlTaskbarBatteryIndicator.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "headsetcontrol.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "libhidapi-0.dll"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]

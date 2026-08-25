@@ -27,14 +27,7 @@ jobs:
       - name: Download HeadsetControl
         shell: pwsh
         run: |
-          $releaseUrl = "https://api.github.com/repos/Sapd/HeadsetControl/releases/latest"
-          $releaseData = Invoke-RestMethod -Uri $releaseUrl
-          $asset = $releaseData.assets | Where-Object { $_.name -like "*-Windows.zip" }
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "headsetcontrol.zip"
-          Expand-Archive -Path "headsetcontrol.zip" -DestinationPath "hc_temp"
-          Get-ChildItem -Path "hc_temp" -Recurse -Filter "headsetcontrol.exe" | Copy-Item -Destination "."
-          Get-ChildItem -Path "hc_temp" -Recurse -Filter "libhidapi-0.dll" | Copy-Item -Destination "."
-          Remove-Item -Recurse -Force "hc_temp", "headsetcontrol.zip"
+          Invoke-WebRequest -Uri "https://github.com/Sapd/HeadsetControl/releases/latest/download/headsetcontrol-windows-x86_64.exe" -OutFile "headsetcontrol.exe"
 
       - name: Compile Inno Setup Installer
         run: ISCC.exe installer.iss
