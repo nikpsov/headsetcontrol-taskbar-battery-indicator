@@ -6,8 +6,10 @@
 
 Легковесное приложение для Windows, которое отображает уровень заряда батареи различных беспроводных игровых гарнитур прямо на панели задач или в виде удобного оверлея.
 
-<!-- Screenshot placeholder -->
-![App Screenshot](docs/screenshot1.png)
+<!-- Скриншоты -->
+![Taskbar Indicator](docs/taskbar-indicator.png)
+![Taskbar Percentage](docs/taskbar-percentage.png)
+![Popup](docs/popup.png)
 
 ## Особенности
 - **Индикатор на панели задач:** Отслеживайте уровень заряда вашей беспроводной гарнитуры прямо на панели задач или через удобный оверлей.
@@ -16,8 +18,8 @@
 - **Автозагрузка:** Может автоматически запускаться вместе с Windows.
 - **Уведомления:** Показывает всплывающее уведомление (toast) при низком заряде батареи.
 
-<!-- Screenshot placeholder -->
-![Settings Context Menu](docs/screenshot2.png)
+<!-- Скриншоты -->
+![Settings Context Menu](docs/context-menu.png)
 
 ## Установка
 

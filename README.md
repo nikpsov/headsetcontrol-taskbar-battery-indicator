@@ -6,8 +6,10 @@
 
 A lightweight Windows application that displays a taskbar battery indicator (or overlay) for various wireless gaming headsets.
 
-<!-- Screenshot placeholder -->
-![App Screenshot](docs/screenshot1.png)
+<!-- Screenshots -->
+![Taskbar Indicator](docs/taskbar-indicator.png)
+![Taskbar Percentage](docs/taskbar-percentage.png)
+![Popup](docs/popup.png)
 
 ## Features
 - **Taskbar Battery Indicator:** Keeps track of your wireless headset's battery level directly from your taskbar or through a convenient overlay.
@@ -16,8 +18,8 @@ A lightweight Windows application that displays a taskbar battery indicator (or 
 - **Auto-Startup:** Can automatically run when Windows starts.
 - **Low Battery Notifications:** Pops up a toast notification when battery is low.
 
-<!-- Screenshot placeholder -->
-![Settings Context Menu](docs/screenshot2.png)
+<!-- Screenshots -->
+![Settings Context Menu](docs/context-menu.png)
 
 ## Installation
 
