@@ -2,6 +2,11 @@
 [Oo]bj/
 [Bb]in/
 Output/
+*.o
+*.obj
+
+# Reference repositories for development
+reference/
 
 # Logs
 *.log

@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
-using System.Windows.Threading;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Shapes;
+using System.Windows.Threading;
 
 namespace HeadsetControlTaskbarBatteryIndicator
 {
@@ -15,15 +17,18 @@ namespace HeadsetControlTaskbarBatteryIndicator
         {
             try
             {
+                HeadsetService.Log("Application Main() started");
                 var app = new App();
                 app.Run(new OverlayWindow());
             }
             catch (Exception ex)
             {
+                HeadsetService.Log("Fatal Application Crash: " + ex);
                 System.IO.File.WriteAllText("crash.log", ex.ToString());
             }
         }
     }
+
 
     public class OverlayWindow : Window
     {
@@ -55,9 +60,9 @@ namespace HeadsetControlTaskbarBatteryIndicator
         static extern IntPtr SetWindowLongPtr64(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
         [DllImport("user32.dll", EntryPoint = "SetWindowLong")]
         static extern IntPtr SetWindowLong32(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
-        static IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong) 
-        { 
-            return IntPtr.Size == 8 ? SetWindowLongPtr64(hWnd, nIndex, dwNewLong) : SetWindowLong32(hWnd, nIndex, dwNewLong); 
+        static IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong)
+        {
+            return IntPtr.Size == 8 ? SetWindowLongPtr64(hWnd, nIndex, dwNewLong) : SetWindowLong32(hWnd, nIndex, dwNewLong);
         }
         const int GWLP_HWNDPARENT = -8;
 
@@ -70,290 +75,69 @@ namespace HeadsetControlTaskbarBatteryIndicator
             public int Bottom;
         }
 
-        private DispatcherTimer _batteryTimer;
         private DispatcherTimer _positionTimer;
         private TextBlock _batteryText;
         private TextBlock _iconText;
         private StackPanel _stack;
-        
+        private Border _containerBorder;
+
         private Grid _batteryIconContainer;
         private Border _batteryIconBorder;
         private Border _batteryFill;
-        private System.Windows.Shapes.Rectangle _batteryTerminal;
-        private System.Windows.Shapes.Polygon _chargingBolt;
+        private Border _batteryTerminal;
+        private Polygon _chargingBolt;
         private TextBlock _batteryCross;
 
         private WinEventDelegate _winEventProc;
         private IntPtr _hWinEventHook;
         private FlyoutWindow _flyout;
-        
+
         private System.Windows.Forms.NotifyIcon _notifyIcon;
+        private System.Windows.Forms.ToolStripMenuItem _trayDisplayStyleItem;
+        private System.Windows.Forms.ToolStripMenuItem _trayHideItem;
+        private System.Windows.Forms.ToolStripMenuItem _trayStartupItem;
         private bool _hideWhenDisconnected = true;
         private bool _shouldHideOverlay = false;
         private bool _runOnStartup = false;
         private bool? _lastIsSystemLight = null;
 
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        extern static bool DestroyIcon(IntPtr handle);
-        
         private int _displayStyle = 0; // 0 = Percent, 1 = Icon
 
-        private int _currentBattery = -1;
-        private string _currentModel = "Loading...";
-        private bool _isCharging = false;
+        private HeadsetState _latestState = new HeadsetState();
         private bool _hasWarnedLowBattery = false;
-        private int _ticksSinceLastUpdate = 0;
 
-        private void LoadSettings()
+        public bool IsDarkTheme
         {
-            try
+            get
             {
-                using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\HeadsetControlTaskbarBatteryIndicator"))
+                try
                 {
-                    object val = key.GetValue("HideWhenDisconnected");
-                    if (val != null)
-                        _hideWhenDisconnected = (int)val == 1;
-
-                    object styleVal = key.GetValue("DisplayStyle");
-                    if (styleVal != null)
-                        _displayStyle = (int)styleVal;
-                }
-                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))
-                {
-                    if (key != null)
+                    using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"))
                     {
-                        object val = key.GetValue("HeadsetControlTaskbarBatteryIndicator");
-                        _runOnStartup = val != null;
-                    }
-                }
-            }
-            catch { }
-        }
-
-        private void SaveSettings()
-        {
-            try
-            {
-                using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\HeadsetControlTaskbarBatteryIndicator"))
-                {
-                    key.SetValue("HideWhenDisconnected", _hideWhenDisconnected ? 1 : 0);
-                    key.SetValue("DisplayStyle", _displayStyle);
-                }
-            }
-            catch { }
-        }
-
-        private void SetRunOnStartup(bool enable)
-        {
-            try
-            {
-                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
-                {
-                    if (enable)
-                    {
-                        string path = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
-                        key.SetValue("HeadsetControlTaskbarBatteryIndicator", "\"" + path + "\"");
-                    }
-                    else
-                    {
-                        key.DeleteValue("HeadsetControlTaskbarBatteryIndicator", false);
-                    }
-                }
-            }
-            catch { }
-        }
-
-        private void UpdateContextMenu()
-        {
-            var contextMenu = new ContextMenu();
-            
-            var hideItem = new MenuItem { Header = "Hide when disconnected", IsChecked = _hideWhenDisconnected };
-            hideItem.Click += (s, e) => {
-                _hideWhenDisconnected = !_hideWhenDisconnected;
-                SaveSettings();
-                UpdateContextMenu();
-                UpdateTrayMenu();
-                UpdateBattery();
-            };
-
-            var stylePercentItem = new MenuItem { Header = "Show percentage", IsChecked = _displayStyle == 0 };
-            stylePercentItem.Click += (s, e) => {
-                _displayStyle = 0;
-                SaveSettings();
-                UpdateContextMenu();
-                UpdateTrayMenu();
-                UpdateBattery();
-            };
-
-            var styleIconItem = new MenuItem { Header = "Show as icon", IsChecked = _displayStyle == 1 };
-            styleIconItem.Click += (s, e) => {
-                _displayStyle = 1;
-                SaveSettings();
-                UpdateContextMenu();
-                UpdateTrayMenu();
-                UpdateBattery();
-            };
-
-            var autorunItem = new MenuItem { Header = "Run at Windows startup", IsChecked = _runOnStartup };
-            autorunItem.Click += (s, e) => {
-                _runOnStartup = !_runOnStartup;
-                SetRunOnStartup(_runOnStartup);
-                UpdateContextMenu();
-                UpdateTrayMenu();
-            };
-
-            var exitItem = new MenuItem { Header = "Exit" };
-            exitItem.Click += (s, e) => Application.Current.Shutdown();
-
-            contextMenu.Items.Add(hideItem);
-            contextMenu.Items.Add(new Separator());
-            contextMenu.Items.Add(stylePercentItem);
-            contextMenu.Items.Add(styleIconItem);
-            contextMenu.Items.Add(new Separator());
-            contextMenu.Items.Add(autorunItem);
-            contextMenu.Items.Add(new Separator());
-            contextMenu.Items.Add(exitItem);
-
-            _stack.ContextMenu = contextMenu;
-        }
-
-        private void UpdateTrayIconTheme(bool isSystemLight)
-        {
-            if (_notifyIcon == null) return;
-            if (_lastIsSystemLight.HasValue && _lastIsSystemLight.Value == isSystemLight) return;
-            
-            _lastIsSystemLight = isSystemLight;
-            
-            try
-            {
-                using (var bitmap = new System.Drawing.Bitmap(32, 32))
-                {
-                    using (var g = System.Drawing.Graphics.FromImage(bitmap))
-                    {
-                        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-                        // Avoid GDI+ dark fringe when drawing white text on transparent background
-                        var clearColor = isSystemLight ? System.Drawing.Color.FromArgb(0, 0, 0, 0) : System.Drawing.Color.FromArgb(0, 255, 255, 255);
-                        g.Clear(clearColor);
-                        using (var font = new System.Drawing.Font("Segoe Fluent Icons", 26, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Pixel))
+                        if (key != null)
                         {
-                            var fontToUse = font.Name == "Segoe Fluent Icons" ? font : new System.Drawing.Font("Segoe MDL2 Assets", 26, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Pixel);
-                            var brush = isSystemLight ? System.Drawing.Brushes.Black : System.Drawing.Brushes.White;
-                            
-                            var format = new System.Drawing.StringFormat 
-                            { 
-                                Alignment = System.Drawing.StringAlignment.Center, 
-                                LineAlignment = System.Drawing.StringAlignment.Center 
-                            };
-                            g.DrawString("\uE7F6", fontToUse, brush, new System.Drawing.RectangleF(0, 0, 32, 32), format);
-                            if (fontToUse != font) fontToUse.Dispose();
+                            object val = key.GetValue("SystemUsesLightTheme");
+                            return val == null || (int)val == 0;
                         }
                     }
-                    IntPtr hIcon = bitmap.GetHicon();
-                    var oldIcon = _notifyIcon.Icon;
-                    _notifyIcon.Icon = System.Drawing.Icon.FromHandle(hIcon);
-                    
-                    if (oldIcon != null)
-                    {
-                        DestroyIcon(oldIcon.Handle);
-                        oldIcon.Dispose();
-                    }
                 }
+                catch { }
+                return true;
             }
-            catch
-            {
-                try { _notifyIcon.Icon = System.Drawing.Icon.ExtractAssociatedIcon(System.Reflection.Assembly.GetExecutingAssembly().Location); }
-                catch { _notifyIcon.Icon = System.Drawing.SystemIcons.Application; }
-            }
-        }
-
-        private void SetupTrayIcon()
-        {
-            _notifyIcon = new System.Windows.Forms.NotifyIcon();
-            UpdateTrayIconTheme(true); // default to something, updated on next frame
-            _notifyIcon.Text = "HeadsetControl Taskbar Battery Indicator";
-            _notifyIcon.Visible = true;
-            _notifyIcon.MouseUp += (s, e) => {
-                if (e.Button == System.Windows.Forms.MouseButtons.Left)
-                    ShowFlyout();
-            };
-            
-            UpdateTrayMenu();
-        }
-
-        private void UpdateTrayMenu()
-        {
-            var menu = new System.Windows.Forms.ContextMenu();
-            
-            var hideItem = new System.Windows.Forms.MenuItem("Hide when disconnected");
-            hideItem.Checked = _hideWhenDisconnected;
-            hideItem.Click += (s, e) => {
-                _hideWhenDisconnected = !_hideWhenDisconnected;
-                SaveSettings();
-                UpdateContextMenu();
-                UpdateTrayMenu();
-                UpdateBattery();
-            };
-
-            var stylePercentItem = new System.Windows.Forms.MenuItem("Show percentage");
-            stylePercentItem.Checked = _displayStyle == 0;
-            stylePercentItem.Click += (s, e) => {
-                _displayStyle = 0;
-                SaveSettings();
-                UpdateContextMenu();
-                UpdateTrayMenu();
-                UpdateBattery();
-            };
-
-            var styleIconItem = new System.Windows.Forms.MenuItem("Show as icon");
-            styleIconItem.Checked = _displayStyle == 1;
-            styleIconItem.Click += (s, e) => {
-                _displayStyle = 1;
-                SaveSettings();
-                UpdateContextMenu();
-                UpdateTrayMenu();
-                UpdateBattery();
-            };
-
-            var autorunItem = new System.Windows.Forms.MenuItem("Run at Windows startup");
-            autorunItem.Checked = _runOnStartup;
-            autorunItem.Click += (s, e) => {
-                _runOnStartup = !_runOnStartup;
-                SetRunOnStartup(_runOnStartup);
-                UpdateContextMenu();
-                UpdateTrayMenu();
-            };
-
-            var exitItem = new System.Windows.Forms.MenuItem("Exit");
-            exitItem.Click += (s, e) => Application.Current.Shutdown();
-
-            menu.MenuItems.Add(hideItem);
-            menu.MenuItems.Add("-");
-            menu.MenuItems.Add(stylePercentItem);
-            menu.MenuItems.Add(styleIconItem);
-            menu.MenuItems.Add("-");
-            menu.MenuItems.Add(autorunItem);
-            menu.MenuItems.Add("-");
-            menu.MenuItems.Add(exitItem);
-
-            _notifyIcon.ContextMenu = menu;
-        }
-        public bool IsDarkTheme 
-        { 
-            get { return _iconText != null && _iconText.Foreground.ToString() == "#FFFFFFFF"; } 
         }
 
         public OverlayWindow()
         {
             LoadSettings();
-            
+
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
             Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0));
             Topmost = true;
             ShowInTaskbar = false;
+
             Width = 85;
-            Height = 36; // Windows 11 taskbar icons are 36px tall (centered in 48px taskbar)
+            Height = 36;
 
             _stack = new StackPanel
             {
@@ -361,71 +145,90 @@ namespace HeadsetControlTaskbarBatteryIndicator
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Background = Brushes.Transparent,
-                Margin = new Thickness(8, 0, 8, 0) // Padding inside the hover box
+                Margin = new Thickness(8, 0, 8, 0)
             };
-            
-            UpdateContextMenu();
-            SetupTrayIcon();
 
             _iconText = new TextBlock
             {
                 Text = "\uE7F6",
                 FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
                 FontSize = 16,
-                Foreground = Brushes.Black,
-                Margin = new Thickness(4, 0, 4, 0),
-                VerticalAlignment = VerticalAlignment.Center
+                Foreground = Brushes.White,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(4, 0, 4, 0)
             };
 
             _batteryText = new TextBlock
             {
-                Text = "--%",
-                Foreground = Brushes.Black,
                 FontFamily = new FontFamily("Segoe UI Variable Display, Segoe UI"),
                 FontSize = 12.5,
+                FontWeight = FontWeights.Normal,
+                Foreground = Brushes.White,
                 VerticalAlignment = VerticalAlignment.Center,
+                Text = "--%",
                 Margin = new Thickness(0, 0, 4, 0)
             };
 
-            _batteryIconContainer = new Grid { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 4, 0), Visibility = Visibility.Collapsed };
-            
-            var outerStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            
-            _batteryIconBorder = new Border 
-            { 
-                BorderThickness = new Thickness(1.5), 
-                CornerRadius = new CornerRadius(3), 
-                Width = 20, 
-                Height = 11, 
-                Padding = new Thickness(1) 
+            _batteryIconContainer = new Grid
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(2, 0, 4, 0),
+                Visibility = Visibility.Collapsed
             };
-            
-            _batteryFill = new Border 
-            { 
-                HorizontalAlignment = HorizontalAlignment.Left, 
-                CornerRadius = new CornerRadius(1.5) 
+
+            var outerStack = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            _batteryIconBorder = new Border
+            {
+                BorderBrush = Brushes.White,
+                BorderThickness = new Thickness(1.5),
+                CornerRadius = new CornerRadius(3),
+                Width = 20,
+                Height = 11,
+                Padding = new Thickness(1)
+            };
+
+            _batteryFill = new Border
+            {
+                Background = Brushes.White,
+                CornerRadius = new CornerRadius(1.5),
+                HorizontalAlignment = HorizontalAlignment.Left
             };
             _batteryIconBorder.Child = _batteryFill;
-            
-            _batteryTerminal = new System.Windows.Shapes.Rectangle 
-            { 
-                Width = 1.5, 
-                Height = 4, 
-                RadiusX = 0.5, 
-                RadiusY = 0.5,
+
+            _batteryTerminal = new Border
+            {
+                Background = Brushes.White,
+                Width = 1.5,
+                Height = 4,
+                CornerRadius = new CornerRadius(0, 0.5, 0.5, 0),
+                VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(1, 0, 0, 0)
             };
-            
+
             outerStack.Children.Add(_batteryIconBorder);
             outerStack.Children.Add(_batteryTerminal);
-            
-            _chargingBolt = new System.Windows.Shapes.Polygon
+
+            _chargingBolt = new Polygon
             {
-                Points = new PointCollection(new[] { new Point(3,0), new Point(0,5), new Point(3,5), new Point(2,9), new Point(6,4), new Point(3,4) }),
+                Fill = Brushes.Black,
+                Points = new PointCollection
+                {
+                    new Point(3, 0),
+                    new Point(0, 5),
+                    new Point(3, 5),
+                    new Point(2, 9),
+                    new Point(6, 4),
+                    new Point(3, 4)
+                },
                 Stretch = Stretch.Fill,
                 Width = 5,
                 Height = 8,
-                Margin = new Thickness(0,0,1,0),
+                Margin = new Thickness(0, 0, 1, 0),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 Visibility = Visibility.Collapsed
@@ -433,12 +236,13 @@ namespace HeadsetControlTaskbarBatteryIndicator
 
             _batteryCross = new TextBlock
             {
-                Text = "✕",
+                Text = "\u2715",
                 FontSize = 8,
                 FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0,0,1,0),
+                Margin = new Thickness(0, 0, 1, 0),
                 Visibility = Visibility.Collapsed
             };
 
@@ -449,58 +253,53 @@ namespace HeadsetControlTaskbarBatteryIndicator
             _stack.Children.Add(_iconText);
             _stack.Children.Add(_batteryText);
             _stack.Children.Add(_batteryIconContainer);
-            
-            // Round borders for hover effect
-            var border = new Border 
-            { 
+
+            _containerBorder = new Border
+            {
                 CornerRadius = new CornerRadius(4),
-                Background = new SolidColorBrush(Color.FromArgb(1, 255, 255, 255)), // Make clickable
+                Background = new SolidColorBrush(Color.FromArgb(1, 255, 255, 255)),
                 Cursor = Cursors.Hand,
-                Margin = new Thickness(2, 0, 2, 0), // Small horizontal margin
+                Margin = new Thickness(2, 0, 2, 0),
                 Child = _stack
             };
-            
-            border.MouseEnter += (s, e) => {
-                // Determine hover color based on dark/light mode
-                bool isDark = _iconText.Foreground.ToString() == "#FFFFFFFF";
-                if (isDark)
-                    border.Background = new SolidColorBrush(Color.FromArgb(20, 255, 255, 255)); // Faint white for dark mode
-                else
-                    border.Background = new SolidColorBrush(Color.FromArgb(150, 255, 255, 255)); // Translucent white for light mode
-            };
-            
-            border.MouseLeave += (s, e) => {
-                border.Background = new SolidColorBrush(Color.FromArgb(1, 255, 255, 255));
-            };
 
-            border.MouseLeftButtonUp += (s, e) => ShowFlyout();
+            Content = _containerBorder;
 
-            Content = border;
-
-            // Timer for battery
-            _batteryTimer = new DispatcherTimer();
-            _batteryTimer.Interval = TimeSpan.FromSeconds(5);
-            _batteryTimer.Tick += (s, e) => 
+            _containerBorder.MouseEnter += (s, e) =>
             {
-                if (IsForegroundFullscreen())
-                {
-                    _ticksSinceLastUpdate++;
-                    if (_ticksSinceLastUpdate >= 12) // 12 * 5 = 60 seconds in games
-                    {
-                        _ticksSinceLastUpdate = 0;
-                        UpdateBattery();
-                    }
-                }
-                else
-                {
-                    _ticksSinceLastUpdate = 0;
-                    UpdateBattery();
-                }
+                bool isLight = _lastIsSystemLight.GetValueOrDefault(false);
+                _containerBorder.Background = isLight ?
+                    new SolidColorBrush(Color.FromArgb(150, 255, 255, 255)) :
+                    new SolidColorBrush(Color.FromArgb(20, 255, 255, 255));
             };
-            _batteryTimer.Start();
-            UpdateBattery();
+            _containerBorder.MouseLeave += (s, e) =>
+            {
+                _containerBorder.Background = new SolidColorBrush(Color.FromArgb(1, 255, 255, 255));
+            };
+            this.PreviewMouseLeftButtonDown += (s, e) =>
+            {
+                bool isLight = _lastIsSystemLight.GetValueOrDefault(false);
+                _containerBorder.Background = isLight ?
+                    new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)) :
+                    new SolidColorBrush(Color.FromArgb(35, 255, 255, 255));
+            };
+            this.PreviewMouseLeftButtonUp += (s, e) =>
+            {
+                bool isLight = _lastIsSystemLight.GetValueOrDefault(false);
+                _containerBorder.Background = isLight ?
+                    new SolidColorBrush(Color.FromArgb(150, 255, 255, 255)) :
+                    new SolidColorBrush(Color.FromArgb(20, 255, 255, 255));
+            };
+            this.MouseLeftButtonUp += (s, e) => ShowFlyout();
+            this.MouseRightButtonUp += (s, e) => ShowContextMenu();
 
-            this.SourceInitialized += (s, e) => 
+            InitNotifyIcon();
+
+            // Subscribe to in-process HeadsetService
+            HeadsetService.Instance.StateChanged += OnHeadsetStateChanged;
+            HeadsetService.Instance.Start(15000);
+
+            this.SourceInitialized += (s, e) =>
             {
                 var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
                 IntPtr taskbar = FindWindow("Shell_TrayWnd", null);
@@ -517,8 +316,10 @@ namespace HeadsetControlTaskbarBatteryIndicator
                 _positionTimer.Tick += (ts, te) => UpdatePosition();
                 _positionTimer.Start();
             };
-            this.Closed += (s, e) => 
+
+            this.Closed += (s, e) =>
             {
+                HeadsetService.Instance.Stop();
                 if (_positionTimer != null) _positionTimer.Stop();
                 if (_hWinEventHook != IntPtr.Zero)
                     UnhookWinEvent(_hWinEventHook);
@@ -530,17 +331,204 @@ namespace HeadsetControlTaskbarBatteryIndicator
             };
         }
 
+        private void OnHeadsetStateChanged(HeadsetState state)
+        {
+            this.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                _latestState = state;
+                ApplyHeadsetState(state);
+            }));
+        }
+
+        private void ApplyHeadsetState(HeadsetState state)
+        {
+            try
+            {
+                if (state.IsConnected && state.BatteryLevel >= 0)
+                {
+                    _shouldHideOverlay = false;
+
+                    if (_displayStyle == 0)
+                    {
+                        _batteryText.Visibility = Visibility.Visible;
+                        _batteryIconContainer.Visibility = Visibility.Collapsed;
+                        _batteryText.Text = state.BatteryLevel + "%" + (state.IsCharging ? " ⚡" : "");
+                    }
+                    else
+                    {
+                        _batteryText.Visibility = Visibility.Collapsed;
+                        _batteryIconContainer.Visibility = Visibility.Visible;
+
+                        double maxFillWidth = _batteryIconBorder.Width - _batteryIconBorder.BorderThickness.Left * 2 - _batteryIconBorder.Padding.Left * 2;
+                        double fillWidth = maxFillWidth * (state.BatteryLevel / 100.0);
+                        if (fillWidth < 0) fillWidth = 0;
+                        if (fillWidth > maxFillWidth) fillWidth = maxFillWidth;
+                        _batteryFill.Width = fillWidth;
+
+                        _batteryCross.Visibility = Visibility.Collapsed;
+
+                        if (state.IsCharging)
+                        {
+                            _chargingBolt.Visibility = Visibility.Visible;
+                            _batteryFill.Background = new SolidColorBrush(Color.FromRgb(30, 215, 96)); // Green
+                        }
+                        else
+                        {
+                            _chargingBolt.Visibility = Visibility.Collapsed;
+                            if (state.BatteryLevel <= 20)
+                                _batteryFill.Background = new SolidColorBrush(Color.FromRgb(225, 40, 40)); // Red
+                            else if (state.BatteryLevel <= 40)
+                                _batteryFill.Background = new SolidColorBrush(Color.FromRgb(245, 166, 35)); // Yellow/Orange
+                            else
+                                _batteryFill.Background = new SolidColorBrush(Color.FromRgb(30, 215, 96)); // Green
+                        }
+                    }
+
+                    this.Visibility = Visibility.Visible;
+
+                    if (_notifyIcon != null)
+                    {
+                        string tip = string.Format("{0}: {1}%{2}", state.DeviceName, state.BatteryLevel, state.IsCharging ? " (Charging)" : "");
+                        if (tip.Length > 63) tip = tip.Substring(0, 63);
+                        _notifyIcon.Text = tip;
+                    }
+
+                    if (state.BatteryLevel <= 20 && !_hasWarnedLowBattery && !state.IsCharging)
+                    {
+                        ShowLowBatteryToast();
+                        _hasWarnedLowBattery = true;
+                    }
+                    else if (state.BatteryLevel > 20 || state.IsCharging)
+                    {
+                        _hasWarnedLowBattery = false;
+                    }
+                }
+                else
+                {
+                    _shouldHideOverlay = true;
+
+                    if (_displayStyle == 0)
+                    {
+                        _batteryText.Visibility = Visibility.Visible;
+                        _batteryIconContainer.Visibility = Visibility.Collapsed;
+                        _batteryText.Text = "--%";
+                    }
+                    else
+                    {
+                        _batteryText.Visibility = Visibility.Collapsed;
+                        _batteryIconContainer.Visibility = Visibility.Visible;
+                        _batteryFill.Width = 0;
+                        _chargingBolt.Visibility = Visibility.Collapsed;
+                        _batteryCross.Visibility = Visibility.Visible;
+                    }
+
+                    if (_notifyIcon != null)
+                    {
+                        string tip = string.Format("{0}: Disconnected", state.DeviceName);
+                        if (tip.Length > 63) tip = tip.Substring(0, 63);
+                        _notifyIcon.Text = tip;
+                    }
+
+                    this.Visibility = _hideWhenDisconnected ? Visibility.Hidden : Visibility.Visible;
+                }
+
+                if (_flyout != null && _flyout.IsLoaded)
+                {
+                    _flyout.UpdateData(state);
+                }
+            }
+            catch { }
+        }
+
         private void ShowFlyout()
         {
             if (_flyout == null || !_flyout.IsLoaded)
             {
-                _flyout = new FlyoutWindow(_currentBattery, _currentModel, _isCharging, this);
+                _flyout = new FlyoutWindow(this, _latestState);
                 _flyout.Show();
             }
             else
             {
                 _flyout.Close();
             }
+        }
+
+        private void ShowContextMenu()
+        {
+            bool isDark = IsDarkTheme;
+
+            var menu = new ContextMenu
+            {
+                Placement = System.Windows.Controls.Primitives.PlacementMode.Top,
+                PlacementTarget = this,
+                VerticalOffset = -6,
+                Background = new SolidColorBrush(isDark ? Color.FromArgb(245, 36, 36, 36) : Color.FromArgb(245, 250, 250, 250)),
+                BorderBrush = new SolidColorBrush(isDark ? Color.FromArgb(120, 80, 80, 80) : Color.FromArgb(120, 200, 200, 200)),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(4)
+            };
+
+            var styleItem = CreateStyledMenuItem("Display Style: " + (_displayStyle == 0 ? "Percentage (85%)" : "Battery Icon"), isDark);
+            styleItem.Click += (s, e) =>
+            {
+                _displayStyle = _displayStyle == 0 ? 1 : 0;
+                SaveSettings();
+                ApplyHeadsetState(_latestState);
+                UpdateTheme();
+                SyncTrayMenuState();
+            };
+            menu.Items.Add(styleItem);
+
+            var hideItem = CreateStyledMenuItem("Hide when disconnected", isDark, true, _hideWhenDisconnected);
+            hideItem.Click += (s, e) =>
+            {
+                _hideWhenDisconnected = hideItem.IsChecked;
+                SaveSettings();
+                ApplyHeadsetState(_latestState);
+                SyncTrayMenuState();
+            };
+            menu.Items.Add(hideItem);
+
+            var startupItem = CreateStyledMenuItem("Run on startup", isDark, true, _runOnStartup);
+            startupItem.Click += (s, e) =>
+            {
+                _runOnStartup = startupItem.IsChecked;
+                SetRunOnStartup(_runOnStartup);
+                SyncTrayMenuState();
+            };
+            menu.Items.Add(startupItem);
+
+            menu.Items.Add(new Separator
+            {
+                Background = isDark ? new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)) : new SolidColorBrush(Color.FromArgb(30, 0, 0, 0)),
+                Margin = new Thickness(4, 3, 4, 3)
+            });
+
+            var refreshItem = CreateStyledMenuItem("Refresh Device Info", isDark);
+            refreshItem.Click += (s, e) => HeadsetService.Instance.ForcePoll();
+            menu.Items.Add(refreshItem);
+
+            var exitItem = CreateStyledMenuItem("Exit", isDark);
+            exitItem.Click += (s, e) => Application.Current.Shutdown();
+            menu.Items.Add(exitItem);
+
+            menu.IsOpen = true;
+        }
+
+        private MenuItem CreateStyledMenuItem(string text, bool isDark, bool isCheckable = false, bool isChecked = false)
+        {
+            var item = new MenuItem
+            {
+                Header = text,
+                IsCheckable = isCheckable,
+                IsChecked = isChecked,
+                Foreground = isDark ? Brushes.White : Brushes.Black,
+                FontSize = 12,
+                Padding = new Thickness(8, 4, 8, 4),
+                Margin = new Thickness(0, 1, 0, 1),
+                Cursor = Cursors.Hand
+            };
+            return item;
         }
 
         private void SetupTaskbarHook()
@@ -598,7 +586,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
 
             RECT appBounds;
             GetWindowRect(fgWnd, out appBounds);
-            
+
             IntPtr hMonitor = MonitorFromWindow(fgWnd, MONITOR_DEFAULTTONEAREST);
             if (hMonitor == IntPtr.Zero) return false;
 
@@ -606,9 +594,9 @@ namespace HeadsetControlTaskbarBatteryIndicator
             mi.cbSize = Marshal.SizeOf(mi);
             if (GetMonitorInfo(hMonitor, ref mi))
             {
-                return appBounds.Bottom == mi.rcMonitor.Bottom && 
-                       appBounds.Top == mi.rcMonitor.Top && 
-                       appBounds.Left == mi.rcMonitor.Left && 
+                return appBounds.Bottom == mi.rcMonitor.Bottom &&
+                       appBounds.Top == mi.rcMonitor.Top &&
+                       appBounds.Left == mi.rcMonitor.Left &&
                        appBounds.Right == mi.rcMonitor.Right;
             }
             return false;
@@ -643,7 +631,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
                     if (GetWindowRect(trayNotify, out rect))
                     {
                         var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-                        
+
                         var source = System.Windows.PresentationSource.FromVisual(this);
                         double dpiX = source != null ? source.CompositionTarget.TransformToDevice.M11 : 1.0;
                         double dpiY = source != null ? source.CompositionTarget.TransformToDevice.M22 : 1.0;
@@ -654,7 +642,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
                         int x = rect.Left - physicalWidth;
                         int taskbarHeight = rect.Bottom - rect.Top;
                         int y = rect.Top + (taskbarHeight - physicalHeight) / 2;
-                        
+
                         if (x != _lastX || y != _lastY)
                         {
                             _lastX = x;
@@ -663,8 +651,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
                         }
                         if (this.Visibility == Visibility.Visible)
                         {
-                            // Enforce Z-order
-                            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 0x0010 | 0x0001 | 0x0002); // NOACTIVATE | NOSIZE | NOMOVE
+                            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 0x0010 | 0x0001 | 0x0002);
                         }
                     }
                 }
@@ -682,240 +669,227 @@ namespace HeadsetControlTaskbarBatteryIndicator
                         object val = key.GetValue("SystemUsesLightTheme");
                         bool isLight = val != null && (int)val == 1;
 
-                        var brush = isLight ? Brushes.Black : Brushes.White;
-                        if (_batteryText.Foreground.ToString() != brush.ToString())
+                        if (_lastIsSystemLight != isLight)
                         {
+                            _lastIsSystemLight = isLight;
+                            var brush = isLight ? Brushes.Black : Brushes.White;
+
                             _batteryText.Foreground = brush;
                             _iconText.Foreground = brush;
-                            
+
                             if (_batteryIconBorder != null)
                             {
                                 _batteryIconBorder.BorderBrush = brush;
-                                _batteryTerminal.Fill = brush;
+                                _batteryTerminal.Background = brush;
                                 _batteryCross.Foreground = brush;
                                 _chargingBolt.Fill = isLight ? Brushes.White : Brushes.Black;
-                                
-                                if (!_isCharging && _currentBattery > 20)
-                                    _batteryFill.Background = brush;
-                            }
-                        }
 
-                        UpdateTrayIconTheme(isLight);
+                                // Re-apply fill colors - always use colored fills in Win11 style
+                                if (_latestState.IsConnected && _latestState.BatteryLevel >= 0)
+                                    ApplyHeadsetState(_latestState);
+                            }
+
+                            UpdateTrayIconTheme(isLight);
+                        }
                     }
                 }
             }
             catch { }
         }
 
-        private void UpdateBattery()
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        extern static bool DestroyIcon(IntPtr handle);
+
+        private void UpdateTrayIconTheme(bool isLight)
         {
-            System.Threading.Tasks.Task.Run(() =>
+            try
             {
-                try
+                using (var bmp = new System.Drawing.Bitmap(16, 16))
+                using (var g = System.Drawing.Graphics.FromImage(bmp))
                 {
-                    var process = new System.Diagnostics.Process();
-                    process.StartInfo.FileName = "headsetcontrol.exe";
-                    process.StartInfo.Arguments = "-b -o env";
-                    process.StartInfo.UseShellExecute = false;
-                    process.StartInfo.RedirectStandardOutput = true;
-                    process.StartInfo.CreateNoWindow = true;
-                    process.Start();
+                    g.Clear(System.Drawing.Color.Transparent);
+                    var pen = new System.Drawing.Pen(isLight ? System.Drawing.Color.Black : System.Drawing.Color.White, 1.5f);
+                    g.DrawArc(pen, 2, 2, 11, 11, 180, 180);
+                    g.FillRectangle(new System.Drawing.SolidBrush(isLight ? System.Drawing.Color.Black : System.Drawing.Color.White), 1, 7, 3, 6);
+                    g.FillRectangle(new System.Drawing.SolidBrush(isLight ? System.Drawing.Color.Black : System.Drawing.Color.White), 11, 7, 3, 6);
 
-                    string outputText = process.StandardOutput.ReadToEnd().Trim();
-                    process.WaitForExit();
-                    
-                    int exitCode = process.ExitCode;
-
-                    this.Dispatcher.BeginInvoke(new Action(() =>
-                    {
-                        try
-                        {
-                            string output = outputText;
-                            int percent = -1;
-                            if (exitCode == 0 || output != "") 
-                            {
-                                _isCharging = false; // Reset before parsing
-                                var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                                foreach (var line in lines)
-                                {
-                                    if (line.Contains("_BATTERY_LEVEL="))
-                                    {
-                                        int parsed;
-                                        int index = line.IndexOf('=') + 1;
-                                        if (int.TryParse(line.Substring(index).Trim('\"', '\''), out parsed)) percent = parsed;
-                                    }
-                                    else if (line.Contains("_BATTERY_STATUS="))
-                                    {
-                                        int index = line.IndexOf('=') + 1;
-                                        string status = line.Substring(index).Trim('\"', '\'');
-                                        _isCharging = (status == "BATTERY_CHARGING");
-                                    }
-                                    else if (line.StartsWith("DEVICE_0=") || line.StartsWith("DEVICE_1=") || line.StartsWith("DEVICE_2="))
-                                    {
-                                        int index = line.IndexOf('=') + 1;
-                                        _currentModel = line.Substring(index).Trim('\"', '\'');
-                                    }
-                                }
-                                // Fallback to old simple percent if env failed
-                                if (percent == -1)
-                                {
-                                    int parsed;
-                                    if (int.TryParse(output, out parsed)) percent = parsed;
-                                }
-                            }
-
-                            if (percent != -1)
-                            {
-                                _shouldHideOverlay = false;
-                                _currentBattery = percent;
-                                
-                                if (_displayStyle == 0)
-                                {
-                                    _batteryText.Visibility = Visibility.Visible;
-                                    _batteryIconContainer.Visibility = Visibility.Collapsed;
-                                    
-                                    _batteryText.FontFamily = new FontFamily("Segoe UI Variable Display, Segoe UI");
-                                    _batteryText.FontSize = 12.5;
-                                    _batteryText.FontWeight = FontWeights.Normal;
-                                    _batteryText.Text = percent + "%" + (_isCharging ? " ⚡" : "");
-                                    _batteryText.Margin = new Thickness(0, 0, 4, 0);
-                                }
-                                else
-                                {
-                                    _batteryText.Visibility = Visibility.Collapsed;
-                                    _batteryIconContainer.Visibility = Visibility.Visible;
-                                    
-                                    double maxFillWidth = _batteryIconBorder.Width - _batteryIconBorder.BorderThickness.Left * 2 - _batteryIconBorder.Padding.Left * 2;
-                                    double fillWidth = maxFillWidth * (percent / 100.0);
-                                    if (fillWidth < 0) fillWidth = 0;
-                                    if (fillWidth > maxFillWidth) fillWidth = maxFillWidth;
-                                    _batteryFill.Width = fillWidth;
-                                    
-                                    _batteryCross.Visibility = Visibility.Collapsed;
-                                    
-                                    if (_isCharging)
-                                    {
-                                        _chargingBolt.Visibility = Visibility.Visible;
-                                        _batteryFill.Background = new SolidColorBrush(Color.FromRgb(30, 215, 96)); // Green
-                                    }
-                                    else
-                                    {
-                                        _chargingBolt.Visibility = Visibility.Collapsed;
-                                        bool isDark = _iconText.Foreground.ToString() == "#FFFFFFFF";
-                                        var brush = isDark ? Brushes.White : Brushes.Black;
-                                        if (percent <= 20)
-                                            _batteryFill.Background = new SolidColorBrush(Color.FromRgb(225, 40, 40)); // Red
-                                        else
-                                            _batteryFill.Background = brush;
-                                    }
-                                }
-                                
-                                this.Visibility = Visibility.Visible;
-
-                                if (_notifyIcon != null)
-                                {
-                                    string tip = string.Format("{0}: {1}%{2}", _currentModel, percent, _isCharging ? " (Charging)" : "");
-                                    if (tip.Length > 63) tip = tip.Substring(0, 63);
-                                    _notifyIcon.Text = tip;
-                                }
-
-                                if (percent <= 20 && !_hasWarnedLowBattery && !_isCharging)
-                                {
-                                    ShowLowBatteryToast();
-                                    _hasWarnedLowBattery = true;
-                                }
-                                else if (percent > 20 || _isCharging)
-                                {
-                                    _hasWarnedLowBattery = false;
-                                }
-                            }
-                            else
-                            {
-                                _shouldHideOverlay = true;
-                                _currentBattery = -1;
-                                
-                                if (_displayStyle == 0)
-                                {
-                                    _batteryText.Visibility = Visibility.Visible;
-                                    _batteryIconContainer.Visibility = Visibility.Collapsed;
-                                    
-                                    _batteryText.FontFamily = new FontFamily("Segoe UI Variable Display, Segoe UI");
-                                    _batteryText.FontSize = 12.5;
-                                    _batteryText.FontWeight = FontWeights.Normal;
-                                    _batteryText.Text = "--%";
-                                    _batteryText.Margin = new Thickness(0, 0, 4, 0);
-                                }
-                                else
-                                {
-                                    _batteryText.Visibility = Visibility.Collapsed;
-                                    _batteryIconContainer.Visibility = Visibility.Visible;
-                                    
-                                    _batteryFill.Width = 0;
-                                    _chargingBolt.Visibility = Visibility.Collapsed;
-                                    _batteryCross.Visibility = Visibility.Visible;
-                                }
-                                    
-                                if (_notifyIcon != null)
-                                {
-                                    string tip = string.Format("{0}: Disconnected", _currentModel);
-                                    if (tip.Length > 63) tip = tip.Substring(0, 63);
-                                    _notifyIcon.Text = tip;
-                                }
-
-                                if (_hideWhenDisconnected)
-                                {
-                                    this.Visibility = Visibility.Hidden;
-                                }
-                                else
-                                {
-                                    this.Visibility = Visibility.Visible;
-                                }
-                            }
-                        }
-                        catch (Exception exInner)
-                        {
-                            System.IO.File.WriteAllText("crash_battery_inner.log", exInner.ToString());
-                            // this.Visibility = Visibility.Hidden;
-                        }
-                    }));
+                    IntPtr hIcon = bmp.GetHicon();
+                    _notifyIcon.Icon = System.Drawing.Icon.FromHandle(hIcon);
                 }
-                catch (Exception ex)
-                {
-                    this.Dispatcher.BeginInvoke(new Action(() =>
-                    {
-                        System.IO.File.WriteAllText("crash_battery_outer.log", ex.ToString());
-                        // this.Visibility = Visibility.Hidden;
-                    }));
-                }
+            }
+            catch { }
+        }
+
+        private void InitNotifyIcon()
+        {
+            _notifyIcon = new System.Windows.Forms.NotifyIcon();
+            _notifyIcon.Text = "Headset Battery Indicator";
+            _notifyIcon.Visible = true;
+
+            var menu = new System.Windows.Forms.ContextMenuStrip();
+
+            menu.Items.Add("Open Panel", null, (s, e) => this.Dispatcher.Invoke(() => ShowFlyout()));
+
+            menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+
+            _trayDisplayStyleItem = new System.Windows.Forms.ToolStripMenuItem();
+            _trayDisplayStyleItem.Text = "Display Style: " + (_displayStyle == 0 ? "Percentage (85%)" : "Battery Icon");
+            _trayDisplayStyleItem.Click += (s, e) => this.Dispatcher.Invoke(() =>
+            {
+                _displayStyle = _displayStyle == 0 ? 1 : 0;
+                SaveSettings();
+                ApplyHeadsetState(_latestState);
+                UpdateTheme();
+                SyncTrayMenuState();
             });
+            menu.Items.Add(_trayDisplayStyleItem);
+
+            _trayHideItem = new System.Windows.Forms.ToolStripMenuItem();
+            _trayHideItem.Text = "Hide when disconnected";
+            _trayHideItem.CheckOnClick = true;
+            _trayHideItem.Checked = _hideWhenDisconnected;
+            _trayHideItem.CheckedChanged += (s, e) => this.Dispatcher.Invoke(() =>
+            {
+                _hideWhenDisconnected = _trayHideItem.Checked;
+                SaveSettings();
+                ApplyHeadsetState(_latestState);
+            });
+            menu.Items.Add(_trayHideItem);
+
+            _trayStartupItem = new System.Windows.Forms.ToolStripMenuItem();
+            _trayStartupItem.Text = "Run on startup";
+            _trayStartupItem.CheckOnClick = true;
+            _trayStartupItem.Checked = _runOnStartup;
+            _trayStartupItem.CheckedChanged += (s, e) => this.Dispatcher.Invoke(() =>
+            {
+                _runOnStartup = _trayStartupItem.Checked;
+                SetRunOnStartup(_runOnStartup);
+            });
+            menu.Items.Add(_trayStartupItem);
+
+            menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+
+            menu.Items.Add("Refresh Device Info", null, (s, e) => HeadsetService.Instance.ForcePoll());
+
+            menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+
+            menu.Items.Add("Exit", null, (s, e) => this.Dispatcher.Invoke(() => Application.Current.Shutdown()));
+
+            _notifyIcon.ContextMenuStrip = menu;
+            _notifyIcon.MouseClick += (s, e) =>
+            {
+                if (e.Button == System.Windows.Forms.MouseButtons.Left)
+                {
+                    this.Dispatcher.Invoke(() => ShowFlyout());
+                }
+            };
+
+            UpdateTrayIconTheme(!IsDarkTheme);
+        }
+
+        private void SyncTrayMenuState()
+        {
+            if (_trayDisplayStyleItem != null)
+                _trayDisplayStyleItem.Text = "Display Style: " + (_displayStyle == 0 ? "Percentage (85%)" : "Battery Icon");
+            if (_trayHideItem != null)
+                _trayHideItem.Checked = _hideWhenDisconnected;
+            if (_trayStartupItem != null)
+                _trayStartupItem.Checked = _runOnStartup;
         }
 
         private void ShowLowBatteryToast()
         {
-            var notif = new NotificationWindow("Low Battery", string.Format("{0}% remaining.", _currentBattery));
+            var notif = new NotificationWindow("Low Headset Battery", string.Format("{0}% remaining on {1}.", _latestState.BatteryLevel, _latestState.DeviceName));
             notif.Show();
+        }
+
+        private void LoadSettings()
+        {
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\HeadsetControlTaskbarBatteryIndicator"))
+                {
+                    object val = key.GetValue("HideWhenDisconnected");
+                    if (val != null)
+                        _hideWhenDisconnected = (int)val == 1;
+
+                    object styleVal = key.GetValue("DisplayStyle");
+                    if (styleVal != null)
+                        _displayStyle = (int)styleVal;
+                }
+                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))
+                {
+                    if (key != null)
+                    {
+                        object val = key.GetValue("HeadsetControlTaskbarBatteryIndicator");
+                        _runOnStartup = val != null;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private void SaveSettings()
+        {
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\HeadsetControlTaskbarBatteryIndicator"))
+                {
+                    key.SetValue("HideWhenDisconnected", _hideWhenDisconnected ? 1 : 0);
+                    key.SetValue("DisplayStyle", _displayStyle);
+                }
+            }
+            catch { }
+        }
+
+        private void SetRunOnStartup(bool enable)
+        {
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
+                {
+                    if (key != null)
+                    {
+                        if (enable)
+                        {
+                            string appPath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                            key.SetValue("HeadsetControlTaskbarBatteryIndicator", "\"" + appPath + "\"");
+                        }
+                        else
+                        {
+                            key.DeleteValue("HeadsetControlTaskbarBatteryIndicator", false);
+                        }
+                    }
+                }
+            }
+            catch { }
         }
     }
 
     public class FlyoutWindow : Window
     {
-        public FlyoutWindow(int batteryPercent, string modelName, bool isCharging, Window owner)
+        private TextBlock _titleText;
+        private TextBlock _batteryText;
+        private TextBlock _timeText;
+        private TextBlock _voltageText;
+
+        private Grid _mainView;
+        private StackPanel _settingsView;
+        private TextBlock _statusFeedbackText;
+
+        public FlyoutWindow(OverlayWindow owner, HeadsetState state)
         {
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
             Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0));
             Topmost = true;
             ShowInTaskbar = false;
-            Width = 340;
-            Height = 150;
-            
-            // Calculate position
-            var source = System.Windows.PresentationSource.FromVisual(owner);
-            double dpiX = source != null ? source.CompositionTarget.TransformToDevice.M11 : 1.0;
-            double dpiY = source != null ? source.CompositionTarget.TransformToDevice.M22 : 1.0;
+            Width = 290;
+            SizeToContent = SizeToContent.Height;
 
+            // Position above taskbar
             this.Left = owner.Left + owner.Width / 2 - this.Width / 2;
-            this.Top = owner.Top - this.Height - 20; // Show above the taskbar with more padding
+            this.Top = owner.Top - 110;
 
             bool isDark = true;
             OverlayWindow ow = owner as OverlayWindow;
@@ -926,87 +900,353 @@ namespace HeadsetControlTaskbarBatteryIndicator
 
             var border = new Border
             {
-                Background = new SolidColorBrush(isDark ? Color.FromArgb(240, 30, 30, 30) : Color.FromArgb(240, 243, 243, 243)),
-                BorderBrush = new SolidColorBrush(isDark ? Color.FromArgb(100, 100, 100, 100) : Color.FromArgb(100, 200, 200, 200)),
+                Background = new SolidColorBrush(isDark ? Color.FromArgb(245, 28, 28, 28) : Color.FromArgb(245, 245, 245, 245)),
+                BorderBrush = new SolidColorBrush(isDark ? Color.FromArgb(120, 80, 80, 80) : Color.FromArgb(120, 200, 200, 200)),
                 BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(8),
-                Padding = new Thickness(16)
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(14),
+                Margin = new Thickness(4)
             };
 
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var rootGrid = new Grid();
 
-            // Icon (huge headset icon)
+            // -------------------------------------------------------------
+            // 1. MAIN VIEW (Headset icon + Info + Gear icon on bottom-right)
+            // -------------------------------------------------------------
+            _mainView = new Grid();
+            _mainView.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(46) });
+            _mainView.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            _mainView.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
+
             var icon = new TextBlock
             {
                 Text = "\uE7F6",
                 FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
-                FontSize = 56,
+                FontSize = 36,
                 Foreground = isDark ? Brushes.White : Brushes.Black,
                 VerticalAlignment = VerticalAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Center
+                HorizontalAlignment = HorizontalAlignment.Left
             };
             Grid.SetColumn(icon, 0);
-            grid.Children.Add(icon);
+            _mainView.Children.Add(icon);
 
-            var infoPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
-            
-            var titleText = new TextBlock
+            var infoPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 4, 0) };
+
+            _titleText = new TextBlock
             {
-                Text = modelName,
+                Text = state.DeviceName,
                 Foreground = isDark ? Brushes.White : Brushes.Black,
-                FontSize = 16,
-                FontWeight = FontWeights.Bold,
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 0, 0, 4)
-            };
-            
-            var batteryText = new TextBlock
-            {
-                Text = batteryPercent == -1 ? "Disconnected" : string.Format("Battery: {0}%", batteryPercent),
-                Foreground = isDark ? Brushes.LightGray : Brushes.DarkGray,
                 FontSize = 14,
-                Margin = new Thickness(0, 0, 0, 4)
+                FontWeight = FontWeights.SemiBold,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 2)
             };
 
-            // Estimate time based on max 15 hours for 100%
-            string timeString = "";
-            if (batteryPercent == -1)
+            _batteryText = new TextBlock
             {
-                timeString = "Headset is disconnected or sleeping";
+                Foreground = isDark ? Brushes.LightGray : Brushes.DarkGray,
+                FontSize = 12.5,
+                Margin = new Thickness(0, 0, 0, 2)
+            };
+
+            _timeText = new TextBlock
+            {
+                Foreground = isDark ? new SolidColorBrush(Color.FromRgb(160, 160, 160)) : Brushes.Gray,
+                FontSize = 11,
+                Margin = new Thickness(0, 0, 0, 2)
+            };
+
+            _voltageText = new TextBlock
+            {
+                Foreground = isDark ? new SolidColorBrush(Color.FromRgb(140, 140, 140)) : Brushes.Gray,
+                FontSize = 10,
+                Visibility = Visibility.Collapsed
+            };
+
+            infoPanel.Children.Add(_titleText);
+            infoPanel.Children.Add(_batteryText);
+            infoPanel.Children.Add(_timeText);
+            infoPanel.Children.Add(_voltageText);
+
+            Grid.SetColumn(infoPanel, 1);
+            _mainView.Children.Add(infoPanel);
+
+            // Gear icon at bottom right of the main card
+            var gearBtn = new Border
+            {
+                Width = 22,
+                Height = 22,
+                CornerRadius = new CornerRadius(4),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Cursor = Cursors.Hand,
+                ToolTip = "Sleep Timer Settings",
+                Background = Brushes.Transparent
+            };
+            var gearIcon = new TextBlock
+            {
+                Text = "\uE713",
+                FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
+                FontSize = 13,
+                Foreground = isDark ? new SolidColorBrush(Color.FromRgb(150, 150, 150)) : Brushes.Gray,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            gearBtn.Child = gearIcon;
+
+            gearBtn.MouseEnter += (s, e) =>
+            {
+                gearBtn.Background = isDark ? new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)) : new SolidColorBrush(Color.FromArgb(30, 0, 0, 0));
+                gearIcon.Foreground = isDark ? Brushes.White : Brushes.Black;
+            };
+            gearBtn.MouseLeave += (s, e) =>
+            {
+                gearBtn.Background = Brushes.Transparent;
+                gearIcon.Foreground = isDark ? new SolidColorBrush(Color.FromRgb(150, 150, 150)) : Brushes.Gray;
+            };
+
+            gearBtn.MouseLeftButtonUp += (s, e) =>
+            {
+                _mainView.Visibility = Visibility.Collapsed;
+                _settingsView.Visibility = Visibility.Visible;
+                this.Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
+                {
+                    this.Top = owner.Top - this.ActualHeight - 8;
+                }));
+            };
+
+            Grid.SetColumn(gearBtn, 2);
+            _mainView.Children.Add(gearBtn);
+
+            rootGrid.Children.Add(_mainView);
+
+            // -------------------------------------------------------------
+            // 2. SETTINGS VIEW (Back button + Auto-sleep Timer options)
+            // -------------------------------------------------------------
+            _settingsView = new StackPanel { Visibility = Visibility.Collapsed };
+
+            var settingsHeader = new Grid { Margin = new Thickness(0, 0, 0, 10) };
+            settingsHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
+            settingsHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var backBtn = new Border
+            {
+                Width = 22,
+                Height = 22,
+                CornerRadius = new CornerRadius(4),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Cursor = Cursors.Hand,
+                ToolTip = "Back",
+                Background = Brushes.Transparent
+            };
+            var backIcon = new TextBlock
+            {
+                Text = "\uE72B",
+                FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
+                FontSize = 12,
+                Foreground = isDark ? Brushes.White : Brushes.Black,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            backBtn.Child = backIcon;
+
+            backBtn.MouseEnter += (s, e) =>
+            {
+                backBtn.Background = isDark ? new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)) : new SolidColorBrush(Color.FromArgb(30, 0, 0, 0));
+            };
+            backBtn.MouseLeave += (s, e) =>
+            {
+                backBtn.Background = Brushes.Transparent;
+            };
+
+            backBtn.MouseLeftButtonUp += (s, e) =>
+            {
+                _settingsView.Visibility = Visibility.Collapsed;
+                _statusFeedbackText.Visibility = Visibility.Collapsed;
+                _mainView.Visibility = Visibility.Visible;
+                this.Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
+                {
+                    this.Top = owner.Top - this.ActualHeight - 8;
+                }));
+            };
+
+            Grid.SetColumn(backBtn, 0);
+            settingsHeader.Children.Add(backBtn);
+
+            var settingsTitle = new TextBlock
+            {
+                Text = "Inactive Sleep Timer",
+                FontSize = 13,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = isDark ? Brushes.White : Brushes.Black,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 0, 0, 0)
+            };
+            Grid.SetColumn(settingsTitle, 1);
+            settingsHeader.Children.Add(settingsTitle);
+
+            _settingsView.Children.Add(settingsHeader);
+
+            var sleepButtons = new System.Windows.Controls.Primitives.UniformGrid { Columns = 5, Margin = new Thickness(0, 2, 0, 0) };
+            int[] timeouts = new int[] { 0, 5, 15, 30, 60 };
+            string[] timeoutLabels = new string[] { "Off", "5m", "15m", "30m", "1h" };
+
+            for (int i = 0; i < timeouts.Length; i++)
+            {
+                byte mins = (byte)timeouts[i];
+                string label = timeoutLabels[i];
+
+                var btnBorder = new Border
+                {
+                    Height = 26,
+                    Margin = new Thickness(2, 0, 2, 0),
+                    CornerRadius = new CornerRadius(4),
+                    Background = isDark ? new SolidColorBrush(Color.FromArgb(35, 255, 255, 255)) : new SolidColorBrush(Color.FromArgb(20, 0, 0, 0)),
+                    BorderBrush = isDark ? new SolidColorBrush(Color.FromArgb(45, 255, 255, 255)) : new SolidColorBrush(Color.FromArgb(30, 0, 0, 0)),
+                    BorderThickness = new Thickness(1),
+                    Cursor = Cursors.Hand
+                };
+
+                var btnText = new TextBlock
+                {
+                    Text = label,
+                    FontSize = 11,
+                    FontWeight = FontWeights.Medium,
+                    Foreground = isDark ? Brushes.White : Brushes.Black,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                btnBorder.Child = btnText;
+
+                btnBorder.MouseEnter += (s, e) =>
+                {
+                    btnBorder.Background = isDark ? new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)) : new SolidColorBrush(Color.FromArgb(40, 0, 0, 0));
+                    btnBorder.BorderBrush = isDark ? new SolidColorBrush(Color.FromArgb(90, 255, 255, 255)) : new SolidColorBrush(Color.FromArgb(60, 0, 0, 0));
+                };
+                btnBorder.MouseLeave += (s, e) =>
+                {
+                    btnBorder.Background = isDark ? new SolidColorBrush(Color.FromArgb(35, 255, 255, 255)) : new SolidColorBrush(Color.FromArgb(20, 0, 0, 0));
+                    btnBorder.BorderBrush = isDark ? new SolidColorBrush(Color.FromArgb(45, 255, 255, 255)) : new SolidColorBrush(Color.FromArgb(30, 0, 0, 0));
+                };
+
+                btnBorder.MouseLeftButtonUp += (s, e) =>
+                {
+                    bool ok = HeadsetService.Instance.SetInactiveTime(mins);
+                    if (ok)
+                    {
+                        _statusFeedbackText.Text = string.Format("✓ Sleep timer set to {0}", mins == 0 ? "Off" : label);
+                        _statusFeedbackText.Foreground = new SolidColorBrush(Color.FromRgb(40, 190, 90));
+                    }
+                    else
+                    {
+                        _statusFeedbackText.Text = "✕ Failed to set sleep timer";
+                        _statusFeedbackText.Foreground = new SolidColorBrush(Color.FromRgb(230, 60, 60));
+                    }
+                    _statusFeedbackText.Visibility = Visibility.Visible;
+                };
+
+                sleepButtons.Children.Add(btnBorder);
             }
-            else if (isCharging)
+            _settingsView.Children.Add(sleepButtons);
+
+            _statusFeedbackText = new TextBlock
             {
-                timeString = "Charging...";
+                Margin = new Thickness(0, 8, 0, 0),
+                FontSize = 11,
+                FontWeight = FontWeights.Medium,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Visibility = Visibility.Collapsed
+            };
+            _settingsView.Children.Add(_statusFeedbackText);
+
+            rootGrid.Children.Add(_settingsView);
+
+            border.Child = rootGrid;
+            Content = border;
+
+            UpdateData(state);
+
+            this.Loaded += (s, e) =>
+            {
+                this.Top = owner.Top - this.ActualHeight - 8;
+            };
+
+            this.Deactivated += (s, e) => this.Close();
+        }
+
+
+        private static double GetModelMaxBatteryHours(string deviceName)
+        {
+            if (string.IsNullOrEmpty(deviceName)) return 50.0;
+            string lower = deviceName.ToLowerInvariant();
+            if (lower.Contains("pro x 2") || lower.Contains("0x0af7")) return 50.0;
+            if (lower.Contains("alpha wireless")) return 300.0;
+            if (lower.Contains("cloud 3") || lower.Contains("cloud iii")) return 120.0;
+            if (lower.Contains("cloud 2") || lower.Contains("cloud ii") || lower.Contains("flight")) return 30.0;
+            if (lower.Contains("nova 7")) return 38.0;
+            if (lower.Contains("nova 5")) return 60.0;
+            if (lower.Contains("nova pro")) return 22.0;
+            if (lower.Contains("nova 3")) return 36.0;
+            if (lower.Contains("arctis 7+") || lower.Contains("arctis 7 plus")) return 30.0;
+            if (lower.Contains("arctis 7")) return 24.0;
+            if (lower.Contains("arctis 9")) return 20.0;
+            if (lower.Contains("arctis 1")) return 20.0;
+            if (lower.Contains("g733")) return 29.0;
+            if (lower.Contains("g535")) return 33.0;
+            if (lower.Contains("g533") || lower.Contains("g933")) return 15.0;
+            if (lower.Contains("g935")) return 18.0;
+            if (lower.Contains("virtuoso")) return 20.0;
+            if (lower.Contains("void")) return 16.0;
+            if (lower.Contains("maxwell")) return 80.0;
+            return 50.0;
+        }
+
+        public void UpdateData(HeadsetState state)
+        {
+            _titleText.Text = state.DeviceName;
+
+            if (!state.IsConnected || state.BatteryLevel < 0)
+            {
+                _batteryText.Text = "Headset is disconnected or sleeping";
+                _timeText.Text = "Turn on headset or plug in USB receiver";
+                _voltageText.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            _batteryText.Text = string.Format("Battery: {0}%{1}", state.BatteryLevel, state.IsCharging ? " (Charging ⚡)" : "");
+
+            if (state.IsCharging)
+            {
+                if (state.TimeToFullMin > 0)
+                    _timeText.Text = string.Format("Time to full: ~{0}h {1}m", state.TimeToFullMin / 60, state.TimeToFullMin % 60);
+                else
+                    _timeText.Text = "Charging via USB...";
             }
             else
             {
-                double estimatedHours = 15.0 * (batteryPercent / 100.0);
-                int hours = (int)estimatedHours;
-                int minutes = (int)((estimatedHours - hours) * 60);
-                timeString = string.Format("Approx. {0}h {1}m", hours, minutes);
+                if (state.TimeToEmptyMin > 0)
+                {
+                    _timeText.Text = string.Format("Approx. {0}h {1}m remaining", state.TimeToEmptyMin / 60, state.TimeToEmptyMin % 60);
+                }
+                else
+                {
+                    double maxHours = GetModelMaxBatteryHours(state.DeviceName);
+                    double estimatedHours = maxHours * (state.BatteryLevel / 100.0);
+                    int hours = (int)estimatedHours;
+                    int minutes = (int)((estimatedHours - hours) * 60);
+                    _timeText.Text = string.Format("Approx. {0}h {1}m remaining", hours, minutes);
+                }
             }
 
-            var timeText = new TextBlock
+            if (state.VoltageMv > 0)
             {
-                Text = timeString,
-                Foreground = isDark ? Brushes.LightGray : Brushes.DarkGray,
-                FontSize = 12
-            };
-
-            infoPanel.Children.Add(titleText);
-            infoPanel.Children.Add(batteryText);
-            infoPanel.Children.Add(timeText);
-
-            Grid.SetColumn(infoPanel, 1);
-            grid.Children.Add(infoPanel);
-
-            border.Child = grid;
-            Content = border;
-
-            // Close when clicking outside (deactivated)
-            this.Deactivated += (s, e) => this.Close();
+                _voltageText.Text = string.Format("Battery Voltage: {0} mV", state.VoltageMv);
+                _voltageText.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                _voltageText.Visibility = Visibility.Collapsed;
+            }
         }
     }
 
@@ -1043,7 +1283,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
                 FontWeight = FontWeights.Bold,
                 Margin = new Thickness(0, 0, 0, 4)
             };
-            
+
             var msgText = new TextBlock
             {
                 Text = message,
@@ -1058,7 +1298,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
             Content = border;
 
             var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
-            timer.Tick += (s, e) => 
+            timer.Tick += (s, e) =>
             {
                 timer.Stop();
                 this.Close();

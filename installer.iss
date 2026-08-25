@@ -1,5 +1,5 @@
 #define MyAppName "HeadsetControl Taskbar Battery Indicator"
-#define MyAppVersion "0.0.3"
+#define MyAppVersion "0.0.4"
 #define MyAppPublisher "nikpsov"
 #define MyAppURL "https://github.com/nikpsov/headsetcontrol-taskbar-battery-indicator"
 #define MyAppExeName "HeadsetControlTaskbarBatteryIndicator.exe"
@@ -32,13 +32,15 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "startup"; Description: "Run at Windows startup"; GroupDescription: "Additional tasks:"
 
 [Files]
-Source: "bin\Release\net48\HeadsetControlTaskbarBatteryIndicator.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "headsetcontrol.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "HeadsetControlTaskbarBatteryIndicator.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "HeadsetControlTaskbarBatteryIndicatorConsole.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "headsetcontrol.dll"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "HeadsetControlTaskbarBatteryIndicator"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue; Tasks: startup
 
@@ -49,8 +51,8 @@ Type: files; Name: "{userstartup}\{#MyAppName}.lnk"
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
-Filename: "taskkill"; Parameters: "/im ""HeadsetControlTaskbarBatteryIndicator.exe"" /f /t"; Flags: runhidden; RunOnceId: "Kill exe"
-Filename: "taskkill"; Parameters: "/im ""headsetcontrol.exe"" /f /t"; Flags: runhidden; RunOnceId: "Kill hc"
+Filename: "taskkill"; Parameters: "/im ""HeadsetControlTaskbarBatteryIndicator.exe"" /f /t"; Flags: runhidden; RunOnceId: "Kill GUI exe"
+Filename: "taskkill"; Parameters: "/im ""HeadsetControlTaskbarBatteryIndicatorConsole.exe"" /f /t"; Flags: runhidden; RunOnceId: "Kill Console exe"
 
 [Code]
 function KillProcessByName(ProcessName: string): Boolean;
@@ -63,6 +65,7 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   KillProcessByName('HeadsetControlTaskbarBatteryIndicator.exe');
+  KillProcessByName('HeadsetControlTaskbarBatteryIndicatorConsole.exe');
   KillProcessByName('headsetcontrol.exe');
   Result := '';
 end;

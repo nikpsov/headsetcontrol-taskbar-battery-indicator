@@ -4,7 +4,7 @@
 
 [![Release](https://img.shields.io/github/v/release/nikpsov/headsetcontrol-taskbar-battery-indicator?label=release)](https://github.com/nikpsov/headsetcontrol-taskbar-battery-indicator/releases/latest) [![Tag](https://img.shields.io/github/v/tag/nikpsov/headsetcontrol-taskbar-battery-indicator?label=tag)](https://github.com/nikpsov/headsetcontrol-taskbar-battery-indicator/tags)
 
-A lightweight Windows application that displays a taskbar battery indicator (or overlay) for various wireless gaming headsets.
+A lightweight and fast Windows application that displays the battery level of various wireless gaming headsets directly on the taskbar with a modern interactive overlay and flyout panel.
 
 <!-- Screenshots -->
 ![Taskbar Indicator](docs/taskbar-indicator.png)
@@ -12,35 +12,51 @@ A lightweight Windows application that displays a taskbar battery indicator (or 
 ![Popup](docs/popup.png)
 
 ## Features
-- **Taskbar Battery Indicator:** Keeps track of your wireless headset's battery level directly from your taskbar or through a convenient overlay.
-- **Multi-Device Support:** Supports a wide range of devices including Logitech, SteelSeries, Corsair, HyperX, and more.
-- **Customizable:** Settings to hide when disconnected or change display styles (percentage or icon).
-- **Auto-Startup:** Can automatically run when Windows starts.
-- **Low Battery Notifications:** Pops up a toast notification when battery is low.
+- **Direct In-Process Library Integration:** Direct communication with the `HeadsetControl` library via C-API without spawning external CLI processes.
+- **Taskbar Battery Indicator:** Monitor your headset's battery level directly on the Windows taskbar (percentage or battery bar icon).
+- **Interactive Flyout Panel:**
+  - Displays current battery percentage, charging status, and device name.
+  - Estimated remaining battery runtime and time to full charge.
+  - Accurate battery voltage (mV) when supported by the headset hardware.
+  - **Inactive Sleep Timer:** Configure auto-sleep timeouts directly from the flyout (*Off, 5m, 15m, 30m, 1h*).
+- **Wide Device Support:** Supports Logitech (including Centurion protocol / G PRO X 2), SteelSeries, Corsair, HyperX, Razer, Astro, and more.
+- **Live Charging Detection:** Visual lightning bolt ⚡ / green charging bar when plugged into USB power.
+- **Customizable:** Automatic hiding when disconnected, dark/light Windows 11 theme synchronization, style switcher (percentage or battery icon).
+- **Auto-start & Notifications:** Low battery toast warnings (<= 20%) and Windows startup support.
 
 <!-- Screenshots -->
 ![Settings Context Menu](docs/context-menu.png)
 
 ## Installation
 
-1. Go to the [Releases page](https://github.com/nikpsov/headsetcontrol-taskbar-battery-indicator/releases/latest).
-2. Download the latest `HeadsetBatteryIndicatorSetup.exe`.
-3. Run the installer and follow the instructions.
-4. The application will appear in your system tray and taskbar.
+1. Navigate to the [Releases](https://github.com/nikpsov/headsetcontrol-taskbar-battery-indicator/releases/latest) page.
+2. Download the latest `HeadsetBatteryIndicatorSetup.exe` (or the portable zip archive).
+3. Run the installer and follow the on-screen steps.
+4. The indicator will appear on your taskbar and system tray.
 
-## Requirements & Compatibility
+## Building from Source
 
-- **Supported OS:** Windows 10, Windows 11
-- **Supported Devices:** This app relies on the [HeadsetControl](https://github.com/Sapd/HeadsetControl) backend. For a full list of supported headsets, please check the [HeadsetControl Supported Devices list](https://github.com/Sapd/HeadsetControl#supported-headsets). 
-*(Note: Support is based on reverse-engineering the USB HID protocol, so some headsets might not be fully supported yet).*
+### Prerequisites:
+- Windows 10/11
+- C++20 compiler (`Clang` or `MSVC`)
+- .NET Framework 4.8 / .NET 8 SDK
 
-## How it works
-This application works by querying your wireless headset's battery level using the underlying `headsetcontrol` backend and rendering the status seamlessly on your Windows interface.
+### Build:
+Run the build script:
+```cmd
+build.bat
+```
+This compiles the native `headsetcontrol.dll` from vendored submodules and builds `HeadsetControlTaskbarBatteryIndicator.exe`.
 
-## Acknowledgements and References
-This project utilizes or references the following open-source projects to provide its functionality:
+## Acknowledgements & Credits
 
-- **[HeadsetControl](https://github.com/Sapd/HeadsetControl)** - The core library and tool for retrieving battery status from various headsets.
-- **[headset-battery-indicator](https://github.com/aarol/headset-battery-indicator)** - Reference for headset battery logic.
-- **[HeadsetControl-SystemTray](https://github.com/zampierilucas/HeadsetControl-SystemTray)** - Reference for Windows system tray integration.
-- **[TrafficMonitor](https://github.com/zhongyang219/TrafficMonitor)** - Reference for overlay rendering techniques and UI.
+This project builds upon great open-source work in the gaming headset and Windows utility ecosystem:
+
+- **[HeadsetControl](https://github.com/Sapd/HeadsetControl)** (by @Sapd)  
+  *What we use:* The core C++20 headset protocol engine and device registry. Vendored as a Git submodule (`vendor/headsetcontrol`) and compiled into an in-process native library (`headsetcontrol.dll`) via its C-API (`headsetcontrol_c.h`).
+- **[hidapi](https://github.com/libusb/hidapi)** (by libusb / Alan Ott)  
+  *What we use:* The low-level USB HID communication library on Windows (using Win32 SetupAPI), statically compiled into `headsetcontrol.dll`.
+- **[headset-battery-indicator](https://github.com/aarol/headset-battery-indicator)** (by @aarol)  
+  *What we borrowed:* The original concept of a lightweight Windows taskbar/tray battery indicator and the initial baseline for C# P/Invoke bindings to the `HeadsetControl` C-API.
+- **[QontrolPanel](https://github.com/ChrisLauinger77/QontrolPanel)** (by @ChrisLauinger77)  
+  *What we borrowed:* Implementation reference for Inactive Sleep Timer options, millivolt voltage calculation, and Logitech Centurion / G PRO X 2 protocol handling.

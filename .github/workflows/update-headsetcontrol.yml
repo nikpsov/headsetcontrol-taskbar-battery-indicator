@@ -1,0 +1,101 @@
+name: Update HeadsetControl
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 1" # Every Monday at 03:00 UTC
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-headsetcontrol:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Check for upstream HeadsetControl updates
+        id: submodule
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git submodule sync --recursive
+          git -C vendor/headsetcontrol fetch origin master --quiet
+
+          current_sha=$(git -C vendor/headsetcontrol rev-parse HEAD)
+          upstream_sha=$(git -C vendor/headsetcontrol rev-parse origin/master)
+          commits_behind=$(git -C vendor/headsetcontrol rev-list --count HEAD..origin/master)
+
+          echo "current_sha=$current_sha" >> "$GITHUB_OUTPUT"
+          echo "upstream_sha=$upstream_sha" >> "$GITHUB_OUTPUT"
+          echo "commits_behind=$commits_behind" >> "$GITHUB_OUTPUT"
+
+          if [ "$current_sha" = "$upstream_sha" ]; then
+            echo "needs_update=false" >> "$GITHUB_OUTPUT"
+            echo "HeadsetControl submodule is already up to date." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "needs_update=true" >> "$GITHUB_OUTPUT"
+          {
+            echo "## HeadsetControl update detected"
+            echo ""
+            echo "- Current SHA: $current_sha"
+            echo "- Upstream SHA: $upstream_sha"
+            echo "- Commits behind: $commits_behind"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Update HeadsetControl submodule
+        if: steps.submodule.outputs.needs_update == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git submodule update --init --remote --checkout -- vendor/headsetcontrol
+
+      - name: Build PR metadata
+        if: steps.submodule.outputs.needs_update == 'true'
+        id: pr
+        shell: bash
+        env:
+          CURRENT_SHA: ${{ steps.submodule.outputs.current_sha }}
+          UPSTREAM_SHA: ${{ steps.submodule.outputs.upstream_sha }}
+          COMMITS_BEHIND: ${{ steps.submodule.outputs.commits_behind }}
+        run: |
+          set -euo pipefail
+          title="chore: update HeadsetControl submodule (${COMMITS_BEHIND} commits behind)"
+          commit_message="chore: update HeadsetControl submodule to ${UPSTREAM_SHA:0:7}"
+          
+          body_file="$RUNNER_TEMP/update-headsetcontrol-pr-body.md"
+          {
+            echo "### 🔄 Automated HeadsetControl Upstream Update"
+            echo ""
+            echo "- **Previous Submodule SHA:** \`$CURRENT_SHA\`"
+            echo "- **New Upstream SHA:** \`$UPSTREAM_SHA\`"
+            echo "- **Commits Behind Upstream:** \`$COMMITS_BEHIND\`"
+            echo ""
+            echo "This PR was generated automatically by the weekly \`update-headsetcontrol.yml\` workflow."
+          } > "$body_file"
+
+          echo "title=$title" >> "$GITHUB_OUTPUT"
+          echo "commit_message=$commit_message" >> "$GITHUB_OUTPUT"
+          echo "body_file=$body_file" >> "$GITHUB_OUTPUT"
+
+      - name: Create Pull Request
+        if: steps.submodule.outputs.needs_update == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: ${{ steps.pr.outputs.commit_message }}
+          branch: automation/update-headsetcontrol
+          delete-branch: true
+          title: ${{ steps.pr.outputs.title }}
+          body-path: ${{ steps.pr.outputs.body_file }}
+          add-paths: |
+            vendor/headsetcontrol
