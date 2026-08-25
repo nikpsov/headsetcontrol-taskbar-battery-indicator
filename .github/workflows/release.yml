@@ -22,10 +22,8 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Setup LLVM / Clang
-        uses: KyleMayes/install-llvm-action@v2
-        with:
-          version: "18.1.8"
+      - name: Setup MSVC C++ Environment
+        uses: ilammy/msvc-dev-cmd@v1
 
       - name: Compile Native headsetcontrol.dll
         shell: cmd
