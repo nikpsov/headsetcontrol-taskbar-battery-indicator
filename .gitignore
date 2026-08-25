@@ -1,0 +1,20 @@
+# Build output
+[Oo]bj/
+[Bb]in/
+Output/
+
+# Logs
+*.log
+
+# Executables and libraries
+*.exe
+*.dll
+!headsetcontrol.exe
+!libhidapi-0.dll
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
