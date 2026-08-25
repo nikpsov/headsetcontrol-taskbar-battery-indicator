@@ -17,13 +17,22 @@ echo [ERROR] Neither MSVC (cl.exe) nor Clang (clang++.exe) was found in PATH.
 exit /b 1
 
 :USE_MSVC
-echo [2/3] Compiling headsetcontrol.dll with MSVC (C++20, /MT)...
+echo [2/3] Compiling hidapi (C) with MSVC...
+cl /nologo /c /O2 /MT /TC ^
+    /I vendor\hidapi\hidapi ^
+    /I vendor\hidapi\windows ^
+    vendor\hidapi\windows\hid.c /Fohid.obj
+if errorlevel 1 (
+    echo [ERROR] Failed compiling hid.c with MSVC.
+    exit /b 1
+)
+
+echo [3/3] Compiling HeadsetControl C++ library into standalone static headsetcontrol.dll with MSVC...
 cl /nologo /O2 /EHsc /std:c++20 /MT /DHSC_BUILDING_DLL /utf-8 ^
     /I vendor\headsetcontrol\lib ^
     /I vendor\headsetcontrol\lib\devices ^
     /I vendor\hidapi\hidapi ^
     /I vendor\hidapi\windows ^
-    vendor\hidapi\windows\hid.c ^
     vendor\headsetcontrol\lib\device.cpp ^
     vendor\headsetcontrol\lib\device_registry.cpp ^
     vendor\headsetcontrol\lib\globals.cpp ^
@@ -34,6 +43,7 @@ cl /nologo /O2 /EHsc /std:c++20 /MT /DHSC_BUILDING_DLL /utf-8 ^
     vendor\headsetcontrol\lib\utility.cpp ^
     vendor\headsetcontrol\lib\devices\hid_device.cpp ^
     native_ext.cpp ^
+    hid.obj ^
     /LD /Fe:headsetcontrol.dll ^
     /link setupapi.lib
 
@@ -68,7 +78,7 @@ clang++ -std=c++20 -O2 -shared -static -static-libgcc -static-libstdc++ -DHSC_BU
     vendor/headsetcontrol/lib/hid_utility.cpp ^
     vendor/headsetcontrol/lib/result_types.cpp ^
     vendor/headsetcontrol/lib/utility.cpp ^
-    vendor/headsetcontrol/lib/devices/hid_device.cpp ^
+    vendor/headsetcontrol/lib/devices\hid_device.cpp ^
     native_ext.cpp hid.o -lsetupapi -o headsetcontrol.dll
 
 if errorlevel 1 (
