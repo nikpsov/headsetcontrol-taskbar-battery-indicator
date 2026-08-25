@@ -31,7 +31,7 @@
 ## Установка
 
 1. Перейдите на страницу [Релизов (Releases)](https://github.com/nikpsov/headsetcontrol-taskbar-battery-indicator/releases/latest).
-2. Скачайте последнюю версию файла `HeadsetBatteryIndicatorSetup.exe` (или портативный zip-архив).
+2. Скачайте `HeadsetControlTaskbarBatteryIndicatorSetup.exe` (или портативный архив `HeadsetControlTaskbarBatteryIndicatorPortable.zip`).
 3. Запустите установщик и следуйте инструкциям на экране.
 4. После установки приложение появится на панели задач и в системном трее.
 

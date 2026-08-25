@@ -30,7 +30,7 @@ A lightweight and fast Windows application that displays the battery level of va
 ## Installation
 
 1. Navigate to the [Releases](https://github.com/nikpsov/headsetcontrol-taskbar-battery-indicator/releases/latest) page.
-2. Download the latest `HeadsetBatteryIndicatorSetup.exe` (or the portable zip archive).
+2. Download `HeadsetControlTaskbarBatteryIndicatorSetup.exe` (or the portable `HeadsetControlTaskbarBatteryIndicatorPortable.zip`).
 3. Run the installer and follow the on-screen steps.
 4. The indicator will appear on your taskbar and system tray.
 

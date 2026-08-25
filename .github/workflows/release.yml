@@ -41,13 +41,15 @@ jobs:
       - name: Create Portable Zip
         shell: pwsh
         run: |
-          Compress-Archive -Path HeadsetControlTaskbarBatteryIndicator.exe, HeadsetControlTaskbarBatteryIndicatorConsole.exe, headsetcontrol.dll -DestinationPath Output\HeadsetControlBatteryIndicator-Portable.zip
+          Compress-Archive -Path HeadsetControlTaskbarBatteryIndicator.exe, HeadsetControlTaskbarBatteryIndicatorDebug.exe, headsetcontrol.dll -DestinationPath Output\HeadsetControlTaskbarBatteryIndicatorPortable.zip
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            Output/HeadsetBatteryIndicatorSetup.exe
-            Output/HeadsetControlBatteryIndicator-Portable.zip
+            Output/HeadsetControlTaskbarBatteryIndicatorSetup.exe
+            Output/HeadsetControlTaskbarBatteryIndicatorPortable.zip
+            HeadsetControlTaskbarBatteryIndicator.exe
+            HeadsetControlTaskbarBatteryIndicatorDebug.exe
           draft: false
           generate_release_notes: true
