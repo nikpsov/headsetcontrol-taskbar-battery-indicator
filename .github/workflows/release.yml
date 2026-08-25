@@ -1,0 +1,35 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x' # needed for SDK style build
+
+      - name: Build Application
+        run: dotnet build HeadsetControlTaskbarBatteryIndicator.csproj -c Release
+
+      - name: Compile Inno Setup Installer
+        run: ISCC.exe installer.iss
+        
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Output/HeadsetBatteryIndicatorSetup.exe
+          draft: false
+          generate_release_notes: true
