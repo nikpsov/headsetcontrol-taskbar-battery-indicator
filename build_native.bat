@@ -28,7 +28,7 @@ if errorlevel 1 (
 )
 
 echo [3/3] Compiling HeadsetControl C++ library into standalone static headsetcontrol.dll with MSVC...
-cl /nologo /O2 /EHsc /std:c++20 /MT /DHSC_BUILDING_DLL /utf-8 ^
+cl /nologo /O2 /EHsc /std:c++20 /Zc:preprocessor /MT /DHSC_BUILDING_DLL /utf-8 ^
     /I vendor\headsetcontrol\lib ^
     /I vendor\headsetcontrol\lib\devices ^
     /I vendor\hidapi\hidapi ^
