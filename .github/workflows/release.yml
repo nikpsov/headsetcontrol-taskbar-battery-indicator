@@ -32,8 +32,8 @@ jobs:
           $asset = $releaseData.assets | Where-Object { $_.name -like "*-Windows.zip" }
           Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "headsetcontrol.zip"
           Expand-Archive -Path "headsetcontrol.zip" -DestinationPath "hc_temp"
-          Copy-Item -Path "hc_temp\*\headsetcontrol.exe" -Destination "."
-          Copy-Item -Path "hc_temp\*\libhidapi-0.dll" -Destination "."
+          Get-ChildItem -Path "hc_temp" -Recurse -Filter "headsetcontrol.exe" | Copy-Item -Destination "."
+          Get-ChildItem -Path "hc_temp" -Recurse -Filter "libhidapi-0.dll" | Copy-Item -Destination "."
           Remove-Item -Recurse -Force "hc_temp", "headsetcontrol.zip"
 
       - name: Compile Inno Setup Installer
