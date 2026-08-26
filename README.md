@@ -59,5 +59,5 @@ This project builds upon great open-source work in the gaming headset and Window
   *What we use:* The low-level USB HID communication library on Windows (using Win32 SetupAPI), statically compiled into `headsetcontrol.dll`.
 - **[headset-battery-indicator](https://github.com/aarol/headset-battery-indicator)** (by @aarol)  
   *What we borrowed:* The original concept of a lightweight Windows taskbar/tray battery indicator and the initial baseline for C# P/Invoke bindings to the `HeadsetControl` C-API.
-- **[QontrolPanel](https://github.com/ChrisLauinger77/QontrolPanel)** (by @ChrisLauinger77)  
-  *What we borrowed:* Implementation reference for Inactive Sleep Timer options, millivolt voltage calculation, and Logitech Centurion / G PRO X 2 protocol handling.
+- **[DeskBox](https://github.com/Tianyu199509/DeskBox)** (by @Tianyu199509)  
+  *What we borrowed:* Advanced Windows desktop overlay optimization techniques, including DWM window cloaking & transition suppression (`DWMWA_CLOAK`, `DWMWA_TRANSITIONS_FORCEDISABLED`) for flicker-free window rendering, multi-monitor work-area clamping algorithm for the flyout popup, flyout instance caching / zero-latency warmup, and high-refresh-rate compositor clock boost (`DCompositionBoostCompositorClock` & `timeBeginPeriod`).

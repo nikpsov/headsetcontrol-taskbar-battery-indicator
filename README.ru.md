@@ -63,5 +63,5 @@ build.bat
   *Что используется:* Низкоуровневая кроссплатформенная библиотека работы с USB HID в Windows (через Win32 SetupAPI), скомпилированная статически внутри `headsetcontrol.dll`.
 - **[headset-battery-indicator](https://github.com/aarol/headset-battery-indicator)** (автор @aarol)  
   *Что позаимствовано:* Исходная идея компактного индикатора батареи на панели задач/в трее и базовая структура C# P/Invoke обёртки над C-API библиотеки `HeadsetControl`.
-- **[QontrolPanel](https://github.com/ChrisLauinger77/QontrolPanel)** (автор @ChrisLauinger77)  
-  *Что позаимствовано:* Референс реализации таймеров автоотключения Inactive Sleep Timer, вычисления вольтажа аккумулятора в mV и особенностей протокола Logitech Centurion / G PRO X 2.
+- **[DeskBox](https://github.com/Tianyu199509/DeskBox)** (автор @Tianyu199509)  
+  *Что позаимствовано:* Техники оптимизации оверлеев и всплывающих окон Windows Desktop: маскирование окон через DWM Cloaking и подавление системных анимаций (`DWMWA_CLOAK`, `DWMWA_TRANSITIONS_FORCEDISABLED`) для устранения мерцания при позиционировании, алгоритм безопасного позиционирования попапа (Work-Area Clamping) для мультимониторов, кэширование и прогрев инстанса всплывающего окна (0 мс задержки), а также аппаратный буст частоты композитора DWM (`DCompositionBoostCompositorClock` и `timeBeginPeriod`).
