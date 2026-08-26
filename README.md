@@ -15,14 +15,15 @@ A lightweight and fast Windows application that displays the battery level of va
 - **Direct In-Process Library Integration:** Direct communication with the `HeadsetControl` library via C-API without spawning external CLI processes.
 - **Taskbar Battery Indicator:** Monitor your headset's battery level directly on the Windows taskbar (percentage or battery bar icon).
 - **Interactive Flyout Panel:**
-  - Displays current battery percentage, charging status, and device name.
+  - Displays current battery percentage, visual charging pill/badge, battery level progress bar, and device name.
   - Estimated remaining battery runtime and time to full charge.
   - Accurate battery voltage (mV) when supported by the headset hardware.
   - **Inactive Sleep Timer:** Configure auto-sleep timeouts directly from the flyout (*Off, 5m, 15m, 30m, 1h*).
 - **Wide Device Support:** Supports Logitech (including Centurion protocol / G PRO X 2), SteelSeries, Corsair, HyperX, Razer, Astro, and more.
-- **Live Charging Detection:** Visual lightning bolt ⚡ / green charging bar when plugged into USB power.
-- **Customizable:** Automatic hiding when disconnected, dark/light Windows 11 theme synchronization, style switcher (percentage or battery icon).
+- **Live Charging Detection:** Visual lightning bolt charging badge on the taskbar icon, animated green charging bar, and dedicated charging status indicators.
+- **Customizable & Theme-Aware:** Automatic hiding when disconnected, Windows 11 Fluent dark & light theme styling for overlay and context menu, style switcher (percentage or battery icon).
 - **Auto-start & Notifications:** Low battery toast warnings (<= 20%) and Windows startup support.
+- **Safe Logging & Rotation:** File logging is disabled by default in release builds (enabled via `--debug` or `HeadsetControlTaskbarBatteryIndicatorDebug.exe`) with automatic 1MB log rotation.
 
 <!-- Screenshots -->
 ![Settings Context Menu](docs/context-menu.png)

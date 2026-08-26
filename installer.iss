@@ -1,5 +1,5 @@
 #define MyAppName "HeadsetControl Taskbar Battery Indicator"
-#define MyAppVersion "0.0.4"
+#define MyAppVersion "0.0.5"
 #define MyAppPublisher "nikpsov"
 #define MyAppURL "https://github.com/nikpsov/headsetcontrol-taskbar-battery-indicator"
 #define MyAppExeName "HeadsetControlTaskbarBatteryIndicator.exe"

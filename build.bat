@@ -42,7 +42,7 @@ if errorlevel 1 (
 )
 
 echo Building HeadsetControlTaskbarBatteryIndicatorDebug.exe...
-"%CSC_PATH%" /nologo /target:exe /optimize+ /out:HeadsetControlTaskbarBatteryIndicatorDebug.exe %REFS% HeadsetControlNative.cs HeadsetService.cs OverlayApp.cs
+"%CSC_PATH%" /nologo /target:exe /optimize+ /define:DEBUG_LOG /out:HeadsetControlTaskbarBatteryIndicatorDebug.exe %REFS% HeadsetControlNative.cs HeadsetService.cs OverlayApp.cs
 if errorlevel 1 (
     echo [ERROR] C# Debug Console compilation failed.
     exit /b 1

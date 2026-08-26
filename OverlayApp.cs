@@ -77,7 +77,10 @@ namespace HeadsetControlTaskbarBatteryIndicator
 
         private DispatcherTimer _positionTimer;
         private TextBlock _batteryText;
+        private TextBlock _percentChargingBolt;
+        private Grid _iconGrid;
         private TextBlock _iconText;
+        private TextBlock _iconChargingBadge;
         private StackPanel _stack;
         private Border _containerBorder;
 
@@ -93,9 +96,6 @@ namespace HeadsetControlTaskbarBatteryIndicator
         private FlyoutWindow _flyout;
 
         private System.Windows.Forms.NotifyIcon _notifyIcon;
-        private System.Windows.Forms.ToolStripMenuItem _trayDisplayStyleItem;
-        private System.Windows.Forms.ToolStripMenuItem _trayHideItem;
-        private System.Windows.Forms.ToolStripMenuItem _trayStartupItem;
         private bool _hideWhenDisconnected = true;
         private bool _shouldHideOverlay = false;
         private bool _runOnStartup = false;
@@ -136,7 +136,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
             Topmost = true;
             ShowInTaskbar = false;
 
-            Width = 85;
+            Width = 90;
             Height = 36;
 
             _stack = new StackPanel
@@ -145,7 +145,14 @@ namespace HeadsetControlTaskbarBatteryIndicator
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Background = Brushes.Transparent,
-                Margin = new Thickness(8, 0, 8, 0)
+                Margin = new Thickness(6, 0, 6, 0)
+            };
+
+            // Headset icon with layered charging indicator
+            _iconGrid = new Grid
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(2, 0, 4, 0)
             };
 
             _iconText = new TextBlock
@@ -155,8 +162,24 @@ namespace HeadsetControlTaskbarBatteryIndicator
                 FontSize = 16,
                 Foreground = Brushes.White,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(4, 0, 4, 0)
+                HorizontalAlignment = HorizontalAlignment.Center
             };
+
+            _iconChargingBadge = new TextBlock
+            {
+                Text = "\uE945",
+                FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
+                FontSize = 10,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromRgb(30, 215, 96)),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Margin = new Thickness(0, 0, -3, -2),
+                Visibility = Visibility.Collapsed
+            };
+
+            _iconGrid.Children.Add(_iconText);
+            _iconGrid.Children.Add(_iconChargingBadge);
 
             _batteryText = new TextBlock
             {
@@ -166,7 +189,19 @@ namespace HeadsetControlTaskbarBatteryIndicator
                 Foreground = Brushes.White,
                 VerticalAlignment = VerticalAlignment.Center,
                 Text = "--%",
-                Margin = new Thickness(0, 0, 4, 0)
+                Margin = new Thickness(0, 0, 2, 0)
+            };
+
+            _percentChargingBolt = new TextBlock
+            {
+                Text = "\uE945",
+                FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
+                FontSize = 12,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromRgb(30, 215, 96)),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(1, 0, 2, 0),
+                Visibility = Visibility.Collapsed
             };
 
             _batteryIconContainer = new Grid
@@ -250,8 +285,9 @@ namespace HeadsetControlTaskbarBatteryIndicator
             _batteryIconContainer.Children.Add(_chargingBolt);
             _batteryIconContainer.Children.Add(_batteryCross);
 
-            _stack.Children.Add(_iconText);
+            _stack.Children.Add(_iconGrid);
             _stack.Children.Add(_batteryText);
+            _stack.Children.Add(_percentChargingBolt);
             _stack.Children.Add(_batteryIconContainer);
 
             _containerBorder = new Border
@@ -352,11 +388,13 @@ namespace HeadsetControlTaskbarBatteryIndicator
                     {
                         _batteryText.Visibility = Visibility.Visible;
                         _batteryIconContainer.Visibility = Visibility.Collapsed;
-                        _batteryText.Text = state.BatteryLevel + "%" + (state.IsCharging ? " ⚡" : "");
+                        _batteryText.Text = state.BatteryLevel + "%";
+                        _percentChargingBolt.Visibility = state.IsCharging ? Visibility.Visible : Visibility.Collapsed;
                     }
                     else
                     {
                         _batteryText.Visibility = Visibility.Collapsed;
+                        _percentChargingBolt.Visibility = Visibility.Collapsed;
                         _batteryIconContainer.Visibility = Visibility.Visible;
 
                         double maxFillWidth = _batteryIconBorder.Width - _batteryIconBorder.BorderThickness.Left * 2 - _batteryIconBorder.Padding.Left * 2;
@@ -384,11 +422,13 @@ namespace HeadsetControlTaskbarBatteryIndicator
                         }
                     }
 
+                    _iconChargingBadge.Visibility = state.IsCharging ? Visibility.Visible : Visibility.Collapsed;
+
                     this.Visibility = Visibility.Visible;
 
                     if (_notifyIcon != null)
                     {
-                        string tip = string.Format("{0}: {1}%{2}", state.DeviceName, state.BatteryLevel, state.IsCharging ? " (Charging)" : "");
+                        string tip = string.Format("{0}: {1}%{2}", state.DeviceName, state.BatteryLevel, state.IsCharging ? " (Charging ⚡)" : "");
                         if (tip.Length > 63) tip = tip.Substring(0, 63);
                         _notifyIcon.Text = tip;
                     }
@@ -412,15 +452,19 @@ namespace HeadsetControlTaskbarBatteryIndicator
                         _batteryText.Visibility = Visibility.Visible;
                         _batteryIconContainer.Visibility = Visibility.Collapsed;
                         _batteryText.Text = "--%";
+                        _percentChargingBolt.Visibility = Visibility.Collapsed;
                     }
                     else
                     {
                         _batteryText.Visibility = Visibility.Collapsed;
+                        _percentChargingBolt.Visibility = Visibility.Collapsed;
                         _batteryIconContainer.Visibility = Visibility.Visible;
                         _batteryFill.Width = 0;
                         _chargingBolt.Visibility = Visibility.Collapsed;
                         _batteryCross.Visibility = Visibility.Visible;
                     }
+
+                    _iconChargingBadge.Visibility = Visibility.Collapsed;
 
                     if (_notifyIcon != null)
                     {
@@ -453,80 +497,213 @@ namespace HeadsetControlTaskbarBatteryIndicator
             }
         }
 
-        private void ShowContextMenu()
+        private static Style CreateContextMenuStyle(bool isDark)
         {
+            var style = new Style(typeof(ContextMenu));
+            var template = new ControlTemplate(typeof(ContextMenu));
+
+            var border = new FrameworkElementFactory(typeof(Border));
+            border.SetValue(Border.BackgroundProperty, isDark ? new SolidColorBrush(Color.FromArgb(242, 32, 32, 32)) : new SolidColorBrush(Color.FromArgb(245, 252, 252, 252)));
+            border.SetValue(Border.BorderBrushProperty, isDark ? new SolidColorBrush(Color.FromArgb(50, 255, 255, 255)) : new SolidColorBrush(Color.FromArgb(30, 0, 0, 0)));
+            border.SetValue(Border.BorderThicknessProperty, new Thickness(1));
+            border.SetValue(Border.CornerRadiusProperty, new CornerRadius(8));
+            border.SetValue(Border.PaddingProperty, new Thickness(4));
+            border.SetValue(Border.SnapsToDevicePixelsProperty, true);
+
+            var itemsPresenter = new FrameworkElementFactory(typeof(ItemsPresenter));
+            border.AppendChild(itemsPresenter);
+
+            template.VisualTree = border;
+            style.Setters.Add(new Setter(Control.TemplateProperty, template));
+
+            var dropShadow = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                BlurRadius = 14,
+                ShadowDepth = 3,
+                Direction = 270,
+                Color = Colors.Black,
+                Opacity = isDark ? 0.45 : 0.15
+            };
+            style.Setters.Add(new Setter(UIElement.EffectProperty, dropShadow));
+
+            return style;
+        }
+
+        private static Style CreateMenuItemStyle(bool isDark)
+        {
+            var style = new Style(typeof(MenuItem));
+            var template = new ControlTemplate(typeof(MenuItem));
+
+            var border = new FrameworkElementFactory(typeof(Border), "Bd");
+            border.SetValue(Border.CornerRadiusProperty, new CornerRadius(4));
+            border.SetValue(Border.BackgroundProperty, Brushes.Transparent);
+            border.SetValue(Border.PaddingProperty, new Thickness(8, 6, 12, 6));
+            border.SetValue(Border.MarginProperty, new Thickness(0, 1, 0, 1));
+            border.SetValue(Border.SnapsToDevicePixelsProperty, true);
+
+            var grid = new FrameworkElementFactory(typeof(Grid));
+
+            var col0 = new FrameworkElementFactory(typeof(ColumnDefinition));
+            col0.SetValue(ColumnDefinition.WidthProperty, new GridLength(20));
+            grid.AppendChild(col0);
+
+            var col1 = new FrameworkElementFactory(typeof(ColumnDefinition));
+            col1.SetValue(ColumnDefinition.WidthProperty, new GridLength(1, GridUnitType.Star));
+            grid.AppendChild(col1);
+
+            // Checkmark glyph
+            var checkGlyph = new FrameworkElementFactory(typeof(TextBlock), "CheckGlyph");
+            checkGlyph.SetValue(Grid.ColumnProperty, 0);
+            checkGlyph.SetValue(TextBlock.TextProperty, "\uE73E");
+            checkGlyph.SetValue(TextBlock.FontFamilyProperty, new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"));
+            checkGlyph.SetValue(TextBlock.FontSizeProperty, 11.0);
+            checkGlyph.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
+            checkGlyph.SetValue(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Left);
+            checkGlyph.SetValue(TextBlock.VisibilityProperty, Visibility.Collapsed);
+            checkGlyph.SetValue(TextBlock.ForegroundProperty, isDark ? new SolidColorBrush(Color.FromRgb(96, 205, 255)) : new SolidColorBrush(Color.FromRgb(0, 95, 184)));
+            grid.AppendChild(checkGlyph);
+
+            // Header text
+            var cp = new FrameworkElementFactory(typeof(ContentPresenter), "HeaderHost");
+            cp.SetValue(Grid.ColumnProperty, 1);
+            cp.SetValue(ContentPresenter.ContentSourceProperty, "Header");
+            cp.SetValue(ContentPresenter.RecognizesAccessKeyProperty, true);
+            cp.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+            grid.AppendChild(cp);
+
+            border.AppendChild(grid);
+            template.VisualTree = border;
+
+            // Trigger for Checked state
+            var checkedTrigger = new Trigger { Property = MenuItem.IsCheckedProperty, Value = true };
+            checkedTrigger.Setters.Add(new Setter(UIElement.VisibilityProperty, Visibility.Visible, "CheckGlyph"));
+            template.Triggers.Add(checkedTrigger);
+
+            // Trigger for Highlighted / Hover state
+            var highlightTrigger = new Trigger { Property = MenuItem.IsHighlightedProperty, Value = true };
+            highlightTrigger.Setters.Add(new Setter(
+                Border.BackgroundProperty,
+                isDark ? new SolidColorBrush(Color.FromArgb(32, 255, 255, 255)) : new SolidColorBrush(Color.FromArgb(16, 0, 0, 0)),
+                "Bd"));
+            template.Triggers.Add(highlightTrigger);
+
+            // Trigger for Pressed state
+            var pressedTrigger = new Trigger { Property = MenuItem.IsPressedProperty, Value = true };
+            pressedTrigger.Setters.Add(new Setter(
+                Border.BackgroundProperty,
+                isDark ? new SolidColorBrush(Color.FromArgb(20, 255, 255, 255)) : new SolidColorBrush(Color.FromArgb(26, 0, 0, 0)),
+                "Bd"));
+            template.Triggers.Add(pressedTrigger);
+
+            // Trigger for Disabled state
+            var disabledTrigger = new Trigger { Property = UIElement.IsEnabledProperty, Value = false };
+            disabledTrigger.Setters.Add(new Setter(
+                Control.ForegroundProperty,
+                isDark ? new SolidColorBrush(Color.FromRgb(128, 128, 128)) : new SolidColorBrush(Color.FromRgb(160, 160, 160))));
+            template.Triggers.Add(disabledTrigger);
+
+            style.Setters.Add(new Setter(Control.TemplateProperty, template));
+            style.Setters.Add(new Setter(Control.ForegroundProperty, isDark ? Brushes.White : new SolidColorBrush(Color.FromRgb(26, 26, 26))));
+            style.Setters.Add(new Setter(Control.FontFamilyProperty, new FontFamily("Segoe UI Variable Text, Segoe UI, sans-serif")));
+            style.Setters.Add(new Setter(Control.FontSizeProperty, 12.0));
+            style.Setters.Add(new Setter(FrameworkElement.CursorProperty, Cursors.Hand));
+
+            return style;
+        }
+
+        private static Separator CreateStyledSeparator(bool isDark)
+        {
+            return new Separator
+            {
+                Margin = new Thickness(4, 3, 4, 3),
+                Height = 1,
+                Background = isDark ? new SolidColorBrush(Color.FromArgb(35, 255, 255, 255)) : new SolidColorBrush(Color.FromArgb(20, 0, 0, 0)),
+                BorderThickness = new Thickness(0)
+            };
+        }
+
+        private void ShowContextMenu(bool fromTray = false)
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            if (hwnd != IntPtr.Zero)
+            {
+                SetForegroundWindow(hwnd);
+            }
+
             bool isDark = IsDarkTheme;
+            var itemStyle = CreateMenuItemStyle(isDark);
 
             var menu = new ContextMenu
             {
-                Placement = System.Windows.Controls.Primitives.PlacementMode.Top,
-                PlacementTarget = this,
-                VerticalOffset = -6,
-                Background = new SolidColorBrush(isDark ? Color.FromArgb(245, 36, 36, 36) : Color.FromArgb(245, 250, 250, 250)),
-                BorderBrush = new SolidColorBrush(isDark ? Color.FromArgb(120, 80, 80, 80) : Color.FromArgb(120, 200, 200, 200)),
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(4)
+                Style = CreateContextMenuStyle(isDark)
             };
 
-            var styleItem = CreateStyledMenuItem("Display Style: " + (_displayStyle == 0 ? "Percentage (85%)" : "Battery Icon"), isDark);
+            if (fromTray)
+            {
+                menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+                menu.PlacementTarget = this;
+
+                var openPanelItem = CreateStyledMenuItem("Open Panel", itemStyle);
+                openPanelItem.Click += (s, e) => ShowFlyout();
+                menu.Items.Add(openPanelItem);
+
+                menu.Items.Add(CreateStyledSeparator(isDark));
+            }
+            else
+            {
+                menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Top;
+                menu.PlacementTarget = this;
+                menu.VerticalOffset = -6;
+            }
+
+            var styleItem = CreateStyledMenuItem("Display Style: " + (_displayStyle == 0 ? "Percentage (85%)" : "Battery Icon"), itemStyle);
             styleItem.Click += (s, e) =>
             {
                 _displayStyle = _displayStyle == 0 ? 1 : 0;
                 SaveSettings();
                 ApplyHeadsetState(_latestState);
                 UpdateTheme();
-                SyncTrayMenuState();
             };
             menu.Items.Add(styleItem);
 
-            var hideItem = CreateStyledMenuItem("Hide when disconnected", isDark, true, _hideWhenDisconnected);
+            var hideItem = CreateStyledMenuItem("Hide when disconnected", itemStyle, true, _hideWhenDisconnected);
             hideItem.Click += (s, e) =>
             {
                 _hideWhenDisconnected = hideItem.IsChecked;
                 SaveSettings();
                 ApplyHeadsetState(_latestState);
-                SyncTrayMenuState();
             };
             menu.Items.Add(hideItem);
 
-            var startupItem = CreateStyledMenuItem("Run on startup", isDark, true, _runOnStartup);
+            var startupItem = CreateStyledMenuItem("Run on startup", itemStyle, true, _runOnStartup);
             startupItem.Click += (s, e) =>
             {
                 _runOnStartup = startupItem.IsChecked;
                 SetRunOnStartup(_runOnStartup);
-                SyncTrayMenuState();
             };
             menu.Items.Add(startupItem);
 
-            menu.Items.Add(new Separator
-            {
-                Background = isDark ? new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)) : new SolidColorBrush(Color.FromArgb(30, 0, 0, 0)),
-                Margin = new Thickness(4, 3, 4, 3)
-            });
+            menu.Items.Add(CreateStyledSeparator(isDark));
 
-            var refreshItem = CreateStyledMenuItem("Refresh Device Info", isDark);
+            var refreshItem = CreateStyledMenuItem("Refresh Device Info", itemStyle);
             refreshItem.Click += (s, e) => HeadsetService.Instance.ForcePoll();
             menu.Items.Add(refreshItem);
 
-            var exitItem = CreateStyledMenuItem("Exit", isDark);
+            var exitItem = CreateStyledMenuItem("Exit", itemStyle);
             exitItem.Click += (s, e) => Application.Current.Shutdown();
             menu.Items.Add(exitItem);
 
             menu.IsOpen = true;
         }
 
-        private MenuItem CreateStyledMenuItem(string text, bool isDark, bool isCheckable = false, bool isChecked = false)
+        private MenuItem CreateStyledMenuItem(string text, Style style, bool isCheckable = false, bool isChecked = false)
         {
             var item = new MenuItem
             {
                 Header = text,
+                Style = style,
                 IsCheckable = isCheckable,
-                IsChecked = isChecked,
-                Foreground = isDark ? Brushes.White : Brushes.Black,
-                FontSize = 12,
-                Padding = new Thickness(8, 4, 8, 4),
-                Margin = new Thickness(0, 1, 0, 1),
-                Cursor = Cursors.Hand
+                IsChecked = isChecked
             };
             return item;
         }
@@ -554,6 +731,10 @@ namespace HeadsetControlTaskbarBatteryIndicator
         [DllImport("user32.dll")]
         static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
         static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool SetForegroundWindow(IntPtr hWnd);
 
         [DllImport("user32.dll")]
         static extern IntPtr GetForegroundWindow();
@@ -725,76 +906,21 @@ namespace HeadsetControlTaskbarBatteryIndicator
             _notifyIcon = new System.Windows.Forms.NotifyIcon();
             _notifyIcon.Text = "Headset Battery Indicator";
             _notifyIcon.Visible = true;
+            _notifyIcon.ContextMenuStrip = null;
 
-            var menu = new System.Windows.Forms.ContextMenuStrip();
-
-            menu.Items.Add("Open Panel", null, (s, e) => this.Dispatcher.Invoke(() => ShowFlyout()));
-
-            menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-
-            _trayDisplayStyleItem = new System.Windows.Forms.ToolStripMenuItem();
-            _trayDisplayStyleItem.Text = "Display Style: " + (_displayStyle == 0 ? "Percentage (85%)" : "Battery Icon");
-            _trayDisplayStyleItem.Click += (s, e) => this.Dispatcher.Invoke(() =>
-            {
-                _displayStyle = _displayStyle == 0 ? 1 : 0;
-                SaveSettings();
-                ApplyHeadsetState(_latestState);
-                UpdateTheme();
-                SyncTrayMenuState();
-            });
-            menu.Items.Add(_trayDisplayStyleItem);
-
-            _trayHideItem = new System.Windows.Forms.ToolStripMenuItem();
-            _trayHideItem.Text = "Hide when disconnected";
-            _trayHideItem.CheckOnClick = true;
-            _trayHideItem.Checked = _hideWhenDisconnected;
-            _trayHideItem.CheckedChanged += (s, e) => this.Dispatcher.Invoke(() =>
-            {
-                _hideWhenDisconnected = _trayHideItem.Checked;
-                SaveSettings();
-                ApplyHeadsetState(_latestState);
-            });
-            menu.Items.Add(_trayHideItem);
-
-            _trayStartupItem = new System.Windows.Forms.ToolStripMenuItem();
-            _trayStartupItem.Text = "Run on startup";
-            _trayStartupItem.CheckOnClick = true;
-            _trayStartupItem.Checked = _runOnStartup;
-            _trayStartupItem.CheckedChanged += (s, e) => this.Dispatcher.Invoke(() =>
-            {
-                _runOnStartup = _trayStartupItem.Checked;
-                SetRunOnStartup(_runOnStartup);
-            });
-            menu.Items.Add(_trayStartupItem);
-
-            menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-
-            menu.Items.Add("Refresh Device Info", null, (s, e) => HeadsetService.Instance.ForcePoll());
-
-            menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-
-            menu.Items.Add("Exit", null, (s, e) => this.Dispatcher.Invoke(() => Application.Current.Shutdown()));
-
-            _notifyIcon.ContextMenuStrip = menu;
             _notifyIcon.MouseClick += (s, e) =>
             {
                 if (e.Button == System.Windows.Forms.MouseButtons.Left)
                 {
                     this.Dispatcher.Invoke(() => ShowFlyout());
                 }
+                else if (e.Button == System.Windows.Forms.MouseButtons.Right)
+                {
+                    this.Dispatcher.Invoke(() => ShowContextMenu(true));
+                }
             };
 
             UpdateTrayIconTheme(!IsDarkTheme);
-        }
-
-        private void SyncTrayMenuState()
-        {
-            if (_trayDisplayStyleItem != null)
-                _trayDisplayStyleItem.Text = "Display Style: " + (_displayStyle == 0 ? "Percentage (85%)" : "Battery Icon");
-            if (_trayHideItem != null)
-                _trayHideItem.Checked = _hideWhenDisconnected;
-            if (_trayStartupItem != null)
-                _trayStartupItem.Checked = _runOnStartup;
         }
 
         private void ShowLowBatteryToast()
@@ -869,7 +995,12 @@ namespace HeadsetControlTaskbarBatteryIndicator
     public class FlyoutWindow : Window
     {
         private TextBlock _titleText;
-        private TextBlock _batteryText;
+        private TextBlock _batteryPercentText;
+        private Border _chargingBadge;
+        private Border _chargingPillBorder;
+        private TextBlock _chargingPillText;
+        private Grid _batteryProgressBar;
+        private Border _batteryProgressFill;
         private TextBlock _timeText;
         private TextBlock _voltageText;
 
@@ -884,12 +1015,12 @@ namespace HeadsetControlTaskbarBatteryIndicator
             Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0));
             Topmost = true;
             ShowInTaskbar = false;
-            Width = 290;
+            Width = 300;
             SizeToContent = SizeToContent.Height;
 
             // Position above taskbar
             this.Left = owner.Left + owner.Width / 2 - this.Width / 2;
-            this.Top = owner.Top - 110;
+            this.Top = owner.Top - 120;
 
             bool isDark = true;
             OverlayWindow ow = owner as OverlayWindow;
@@ -914,45 +1045,133 @@ namespace HeadsetControlTaskbarBatteryIndicator
             // 1. MAIN VIEW (Headset icon + Info + Gear icon on bottom-right)
             // -------------------------------------------------------------
             _mainView = new Grid();
-            _mainView.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(46) });
+            _mainView.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
             _mainView.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             _mainView.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
+
+            // Icon container with layered charging badge
+            var iconContainer = new Grid
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
 
             var icon = new TextBlock
             {
                 Text = "\uE7F6",
                 FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
-                FontSize = 36,
+                FontSize = 38,
                 Foreground = isDark ? Brushes.White : Brushes.Black,
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Left
             };
-            Grid.SetColumn(icon, 0);
-            _mainView.Children.Add(icon);
+            iconContainer.Children.Add(icon);
 
-            var infoPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 4, 0) };
+            _chargingBadge = new Border
+            {
+                Width = 18,
+                Height = 18,
+                CornerRadius = new CornerRadius(9),
+                Background = new SolidColorBrush(Color.FromRgb(30, 215, 96)),
+                BorderBrush = new SolidColorBrush(isDark ? Color.FromRgb(28, 28, 28) : Color.FromRgb(245, 245, 245)),
+                BorderThickness = new Thickness(1.5),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Margin = new Thickness(0, 0, 2, 2),
+                Visibility = Visibility.Collapsed
+            };
+            var badgeIcon = new TextBlock
+            {
+                Text = "\uE945",
+                FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
+                FontSize = 10,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            _chargingBadge.Child = badgeIcon;
+            iconContainer.Children.Add(_chargingBadge);
+
+            Grid.SetColumn(iconContainer, 0);
+            _mainView.Children.Add(iconContainer);
+
+            var infoPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 4, 0) };
 
             _titleText = new TextBlock
             {
                 Text = state.DeviceName,
                 Foreground = isDark ? Brushes.White : Brushes.Black,
-                FontSize = 14,
+                FontSize = 13.5,
                 FontWeight = FontWeights.SemiBold,
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 2)
             };
 
-            _batteryText = new TextBlock
+            var batteryRow = new StackPanel
             {
-                Foreground = isDark ? Brushes.LightGray : Brushes.DarkGray,
-                FontSize = 12.5,
-                Margin = new Thickness(0, 0, 0, 2)
+                Orientation = Orientation.Horizontal,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 1, 0, 4)
             };
+
+            _batteryPercentText = new TextBlock
+            {
+                Foreground = isDark ? Brushes.White : Brushes.Black,
+                FontSize = 17,
+                FontWeight = FontWeights.SemiBold,
+                Text = "--%"
+            };
+            batteryRow.Children.Add(_batteryPercentText);
+
+            _chargingPillBorder = new Border
+            {
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(6, 1, 6, 2),
+                Margin = new Thickness(8, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Background = new SolidColorBrush(isDark ? Color.FromArgb(40, 30, 215, 96) : Color.FromArgb(30, 16, 124, 65)),
+                BorderBrush = new SolidColorBrush(isDark ? Color.FromArgb(120, 30, 215, 96) : Color.FromArgb(100, 16, 124, 65)),
+                BorderThickness = new Thickness(1),
+                Visibility = Visibility.Collapsed
+            };
+            _chargingPillText = new TextBlock
+            {
+                Text = "⚡ Charging",
+                FontSize = 10.5,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(isDark ? Color.FromRgb(50, 230, 110) : Color.FromRgb(16, 124, 65))
+            };
+            _chargingPillBorder.Child = _chargingPillText;
+            batteryRow.Children.Add(_chargingPillBorder);
+
+            // Battery Level Progress Bar
+            _batteryProgressBar = new Grid
+            {
+                Height = 5,
+                Margin = new Thickness(0, 0, 0, 4),
+                Visibility = Visibility.Collapsed
+            };
+            var barBg = new Border
+            {
+                CornerRadius = new CornerRadius(2.5),
+                Background = isDark ? new SolidColorBrush(Color.FromArgb(35, 255, 255, 255)) : new SolidColorBrush(Color.FromArgb(20, 0, 0, 0))
+            };
+            _batteryProgressFill = new Border
+            {
+                CornerRadius = new CornerRadius(2.5),
+                Background = new SolidColorBrush(Color.FromRgb(30, 215, 96)),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Width = 0
+            };
+            _batteryProgressBar.Children.Add(barBg);
+            _batteryProgressBar.Children.Add(_batteryProgressFill);
 
             _timeText = new TextBlock
             {
-                Foreground = isDark ? new SolidColorBrush(Color.FromRgb(160, 160, 160)) : Brushes.Gray,
+                Foreground = isDark ? new SolidColorBrush(Color.FromRgb(165, 165, 165)) : Brushes.Gray,
                 FontSize = 11,
+                TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 2)
             };
 
@@ -964,7 +1183,8 @@ namespace HeadsetControlTaskbarBatteryIndicator
             };
 
             infoPanel.Children.Add(_titleText);
-            infoPanel.Children.Add(_batteryText);
+            infoPanel.Children.Add(batteryRow);
+            infoPanel.Children.Add(_batteryProgressBar);
             infoPanel.Children.Add(_timeText);
             infoPanel.Children.Add(_voltageText);
 
@@ -1174,7 +1394,6 @@ namespace HeadsetControlTaskbarBatteryIndicator
             this.Deactivated += (s, e) => this.Close();
         }
 
-
         private static double GetModelMaxBatteryHours(string deviceName)
         {
             if (string.IsNullOrEmpty(deviceName)) return 50.0;
@@ -1207,23 +1426,48 @@ namespace HeadsetControlTaskbarBatteryIndicator
 
             if (!state.IsConnected || state.BatteryLevel < 0)
             {
-                _batteryText.Text = "Headset is disconnected or sleeping";
-                _timeText.Text = "Turn on headset or plug in USB receiver";
+                _batteryPercentText.Text = "--";
+                _chargingBadge.Visibility = Visibility.Collapsed;
+                _chargingPillBorder.Visibility = Visibility.Collapsed;
+                _batteryProgressBar.Visibility = Visibility.Collapsed;
+                _timeText.Text = "Headset is disconnected or sleeping\nTurn on headset or plug in USB receiver";
                 _voltageText.Visibility = Visibility.Collapsed;
                 return;
             }
 
-            _batteryText.Text = string.Format("Battery: {0}%{1}", state.BatteryLevel, state.IsCharging ? " (Charging ⚡)" : "");
+            _batteryPercentText.Text = state.BatteryLevel + "%";
+            _batteryProgressBar.Visibility = Visibility.Visible;
+
+            double maxBarWidth = 190.0;
+            double fillWidth = maxBarWidth * (state.BatteryLevel / 100.0);
+            if (fillWidth < 0) fillWidth = 0;
+            if (fillWidth > maxBarWidth) fillWidth = maxBarWidth;
+            _batteryProgressFill.Width = fillWidth;
 
             if (state.IsCharging)
             {
+                _chargingBadge.Visibility = Visibility.Visible;
+                _chargingPillBorder.Visibility = Visibility.Visible;
+                _chargingPillText.Text = "⚡ Charging";
+                _batteryProgressFill.Background = new SolidColorBrush(Color.FromRgb(30, 215, 96));
+
                 if (state.TimeToFullMin > 0)
                     _timeText.Text = string.Format("Time to full: ~{0}h {1}m", state.TimeToFullMin / 60, state.TimeToFullMin % 60);
                 else
-                    _timeText.Text = "Charging via USB...";
+                    _timeText.Text = "⚡ Charging via USB...";
             }
             else
             {
+                _chargingBadge.Visibility = Visibility.Collapsed;
+                _chargingPillBorder.Visibility = Visibility.Collapsed;
+
+                if (state.BatteryLevel <= 20)
+                    _batteryProgressFill.Background = new SolidColorBrush(Color.FromRgb(225, 40, 40));
+                else if (state.BatteryLevel <= 40)
+                    _batteryProgressFill.Background = new SolidColorBrush(Color.FromRgb(245, 166, 35));
+                else
+                    _batteryProgressFill.Background = new SolidColorBrush(Color.FromRgb(30, 215, 96));
+
                 if (state.TimeToEmptyMin > 0)
                 {
                     _timeText.Text = string.Format("Approx. {0}h {1}m remaining", state.TimeToEmptyMin / 60, state.TimeToEmptyMin % 60);
