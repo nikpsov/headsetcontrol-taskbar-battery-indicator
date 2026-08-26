@@ -78,9 +78,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
         private DispatcherTimer _positionTimer;
         private TextBlock _batteryText;
         private TextBlock _percentChargingBolt;
-        private Grid _iconGrid;
         private TextBlock _iconText;
-        private TextBlock _iconChargingBadge;
         private StackPanel _stack;
         private Border _containerBorder;
 
@@ -88,7 +86,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
         private Border _batteryIconBorder;
         private Border _batteryFill;
         private Border _batteryTerminal;
-        private Polygon _chargingBolt;
+        private System.Windows.Shapes.Path _chargingBolt;
         private TextBlock _batteryCross;
 
         private WinEventDelegate _winEventProc;
@@ -148,13 +146,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
                 Margin = new Thickness(6, 0, 6, 0)
             };
 
-            // Headset icon with layered charging indicator
-            _iconGrid = new Grid
-            {
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(2, 0, 4, 0)
-            };
-
+            // Headset icon
             _iconText = new TextBlock
             {
                 Text = "\uE7F6",
@@ -162,24 +154,9 @@ namespace HeadsetControlTaskbarBatteryIndicator
                 FontSize = 16,
                 Foreground = Brushes.White,
                 VerticalAlignment = VerticalAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Center
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(2, 0, 4, 0)
             };
-
-            _iconChargingBadge = new TextBlock
-            {
-                Text = "\uE945",
-                FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
-                FontSize = 10,
-                FontWeight = FontWeights.Bold,
-                Foreground = new SolidColorBrush(Color.FromRgb(30, 215, 96)),
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Bottom,
-                Margin = new Thickness(0, 0, -3, -2),
-                Visibility = Visibility.Collapsed
-            };
-
-            _iconGrid.Children.Add(_iconText);
-            _iconGrid.Children.Add(_iconChargingBadge);
 
             _batteryText = new TextBlock
             {
@@ -222,9 +199,9 @@ namespace HeadsetControlTaskbarBatteryIndicator
                 BorderBrush = Brushes.White,
                 BorderThickness = new Thickness(1.5),
                 CornerRadius = new CornerRadius(3),
-                Width = 20,
-                Height = 11,
-                Padding = new Thickness(1)
+                Width = 22,
+                Height = 12,
+                Padding = new Thickness(1.2)
             };
 
             _batteryFill = new Border
@@ -239,7 +216,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
             {
                 Background = Brushes.White,
                 Width = 1.5,
-                Height = 4,
+                Height = 4.5,
                 CornerRadius = new CornerRadius(0, 0.5, 0.5, 0),
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(1, 0, 0, 0)
@@ -248,24 +225,16 @@ namespace HeadsetControlTaskbarBatteryIndicator
             outerStack.Children.Add(_batteryIconBorder);
             outerStack.Children.Add(_batteryTerminal);
 
-            _chargingBolt = new Polygon
+            _chargingBolt = new System.Windows.Shapes.Path
             {
+                Data = Geometry.Parse("M 4.5,0 L 1.2,6.8 L 4.8,6.8 L 3.0,14 L 8.8,5.5 L 5.2,5.5 Z"),
                 Fill = Brushes.Black,
-                Points = new PointCollection
-                {
-                    new Point(3, 0),
-                    new Point(0, 5),
-                    new Point(3, 5),
-                    new Point(2, 9),
-                    new Point(6, 4),
-                    new Point(3, 4)
-                },
-                Stretch = Stretch.Fill,
-                Width = 5,
-                Height = 8,
-                Margin = new Thickness(0, 0, 1, 0),
+                Stroke = Brushes.White,
+                StrokeThickness = 1.2,
+                StrokeLineJoin = PenLineJoin.Round,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(-1.5, 0, 0, 0),
                 Visibility = Visibility.Collapsed
             };
 
@@ -285,7 +254,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
             _batteryIconContainer.Children.Add(_chargingBolt);
             _batteryIconContainer.Children.Add(_batteryCross);
 
-            _stack.Children.Add(_iconGrid);
+            _stack.Children.Add(_iconText);
             _stack.Children.Add(_batteryText);
             _stack.Children.Add(_percentChargingBolt);
             _stack.Children.Add(_batteryIconContainer);
@@ -408,21 +377,17 @@ namespace HeadsetControlTaskbarBatteryIndicator
                         if (state.IsCharging)
                         {
                             _chargingBolt.Visibility = Visibility.Visible;
-                            _batteryFill.Background = new SolidColorBrush(Color.FromRgb(30, 215, 96)); // Green
+                            _batteryFill.Background = new SolidColorBrush(Color.FromRgb(30, 215, 96)); // Green only on charging
                         }
                         else
                         {
                             _chargingBolt.Visibility = Visibility.Collapsed;
                             if (state.BatteryLevel <= 20)
-                                _batteryFill.Background = new SolidColorBrush(Color.FromRgb(225, 40, 40)); // Red
-                            else if (state.BatteryLevel <= 40)
-                                _batteryFill.Background = new SolidColorBrush(Color.FromRgb(245, 166, 35)); // Yellow/Orange
+                                _batteryFill.Background = new SolidColorBrush(Color.FromRgb(225, 40, 40)); // Red on low battery
                             else
-                                _batteryFill.Background = new SolidColorBrush(Color.FromRgb(30, 215, 96)); // Green
+                                _batteryFill.Background = IsDarkTheme ? Brushes.White : new SolidColorBrush(Color.FromRgb(26, 26, 26)); // Normal theme color
                         }
                     }
-
-                    _iconChargingBadge.Visibility = state.IsCharging ? Visibility.Visible : Visibility.Collapsed;
 
                     this.Visibility = Visibility.Visible;
 
@@ -463,8 +428,6 @@ namespace HeadsetControlTaskbarBatteryIndicator
                         _chargingBolt.Visibility = Visibility.Collapsed;
                         _batteryCross.Visibility = Visibility.Visible;
                     }
-
-                    _iconChargingBadge.Visibility = Visibility.Collapsed;
 
                     if (_notifyIcon != null)
                     {
@@ -994,9 +957,9 @@ namespace HeadsetControlTaskbarBatteryIndicator
 
     public class FlyoutWindow : Window
     {
+        private OverlayWindow _owner;
         private TextBlock _titleText;
         private TextBlock _batteryPercentText;
-        private Border _chargingBadge;
         private Border _chargingPillBorder;
         private TextBlock _chargingPillText;
         private Grid _batteryProgressBar;
@@ -1010,6 +973,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
 
         public FlyoutWindow(OverlayWindow owner, HeadsetState state)
         {
+            _owner = owner;
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
             Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0));
@@ -1049,13 +1013,6 @@ namespace HeadsetControlTaskbarBatteryIndicator
             _mainView.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             _mainView.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
 
-            // Icon container with layered charging badge
-            var iconContainer = new Grid
-            {
-                VerticalAlignment = VerticalAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Left
-            };
-
             var icon = new TextBlock
             {
                 Text = "\uE7F6",
@@ -1065,36 +1022,8 @@ namespace HeadsetControlTaskbarBatteryIndicator
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Left
             };
-            iconContainer.Children.Add(icon);
-
-            _chargingBadge = new Border
-            {
-                Width = 18,
-                Height = 18,
-                CornerRadius = new CornerRadius(9),
-                Background = new SolidColorBrush(Color.FromRgb(30, 215, 96)),
-                BorderBrush = new SolidColorBrush(isDark ? Color.FromRgb(28, 28, 28) : Color.FromRgb(245, 245, 245)),
-                BorderThickness = new Thickness(1.5),
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Bottom,
-                Margin = new Thickness(0, 0, 2, 2),
-                Visibility = Visibility.Collapsed
-            };
-            var badgeIcon = new TextBlock
-            {
-                Text = "\uE945",
-                FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
-                FontSize = 10,
-                FontWeight = FontWeights.Bold,
-                Foreground = Brushes.White,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            _chargingBadge.Child = badgeIcon;
-            iconContainer.Children.Add(_chargingBadge);
-
-            Grid.SetColumn(iconContainer, 0);
-            _mainView.Children.Add(iconContainer);
+            Grid.SetColumn(icon, 0);
+            _mainView.Children.Add(icon);
 
             var infoPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 4, 0) };
 
@@ -1427,7 +1356,6 @@ namespace HeadsetControlTaskbarBatteryIndicator
             if (!state.IsConnected || state.BatteryLevel < 0)
             {
                 _batteryPercentText.Text = "--";
-                _chargingBadge.Visibility = Visibility.Collapsed;
                 _chargingPillBorder.Visibility = Visibility.Collapsed;
                 _batteryProgressBar.Visibility = Visibility.Collapsed;
                 _timeText.Text = "Headset is disconnected or sleeping\nTurn on headset or plug in USB receiver";
@@ -1444,12 +1372,13 @@ namespace HeadsetControlTaskbarBatteryIndicator
             if (fillWidth > maxBarWidth) fillWidth = maxBarWidth;
             _batteryProgressFill.Width = fillWidth;
 
+            bool isDark = _owner != null ? _owner.IsDarkTheme : true;
+
             if (state.IsCharging)
             {
-                _chargingBadge.Visibility = Visibility.Visible;
                 _chargingPillBorder.Visibility = Visibility.Visible;
                 _chargingPillText.Text = "⚡ Charging";
-                _batteryProgressFill.Background = new SolidColorBrush(Color.FromRgb(30, 215, 96));
+                _batteryProgressFill.Background = new SolidColorBrush(Color.FromRgb(30, 215, 96)); // Green on charging
 
                 if (state.TimeToFullMin > 0)
                     _timeText.Text = string.Format("Time to full: ~{0}h {1}m", state.TimeToFullMin / 60, state.TimeToFullMin % 60);
@@ -1458,15 +1387,12 @@ namespace HeadsetControlTaskbarBatteryIndicator
             }
             else
             {
-                _chargingBadge.Visibility = Visibility.Collapsed;
                 _chargingPillBorder.Visibility = Visibility.Collapsed;
 
                 if (state.BatteryLevel <= 20)
-                    _batteryProgressFill.Background = new SolidColorBrush(Color.FromRgb(225, 40, 40));
-                else if (state.BatteryLevel <= 40)
-                    _batteryProgressFill.Background = new SolidColorBrush(Color.FromRgb(245, 166, 35));
+                    _batteryProgressFill.Background = new SolidColorBrush(Color.FromRgb(225, 40, 40)); // Red on low battery
                 else
-                    _batteryProgressFill.Background = new SolidColorBrush(Color.FromRgb(30, 215, 96));
+                    _batteryProgressFill.Background = isDark ? Brushes.White : new SolidColorBrush(Color.FromRgb(26, 26, 26)); // Normal theme color
 
                 if (state.TimeToEmptyMin > 0)
                 {
