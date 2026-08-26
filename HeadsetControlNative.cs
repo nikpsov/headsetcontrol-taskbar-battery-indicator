@@ -10,11 +10,15 @@ namespace HeadsetControlTaskbarBatteryIndicator
 
         public enum BatteryStatus
         {
-            Unavailable = -1,
-            Charging = -2,
-            Available = 0,
-            Error = -100,
-            Timeout = -101
+            Unavailable = 0,
+            Charging = 1,
+            Available = 2,
+            Error = 3,
+            Timeout = 4,
+
+            LegacyUnavailable = -1,
+            LegacyCharging = -2,
+            LegacyAvailable = 0,
         }
 
         public enum Capability

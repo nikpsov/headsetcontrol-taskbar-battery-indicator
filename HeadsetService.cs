@@ -270,12 +270,15 @@ namespace HeadsetControlTaskbarBatteryIndicator
 
                             int res = HeadsetControlNative.hsc_get_battery(activeHandle, ref batt);
 
-                            bool isOnline = (res == 0 && batt.Status != HeadsetControlNative.BatteryStatus.Unavailable && batt.LevelPercent >= 0);
+                            int rawStatus = (int)batt.Status;
+                            bool isCharging = (batt.Status == HeadsetControlNative.BatteryStatus.Charging || rawStatus == 1 || rawStatus == -2);
+                            bool isAvailable = (batt.Status == HeadsetControlNative.BatteryStatus.Available || rawStatus == 2);
+                            bool isOnline = (res == 0 && batt.LevelPercent >= 0 && (isCharging || isAvailable || rawStatus == 0));
 
-                            string statusText = batt.Status == HeadsetControlNative.BatteryStatus.Charging ? "BATTERY_CHARGING (Charging ⚡)" :
-                                               batt.Status == HeadsetControlNative.BatteryStatus.Available ? "BATTERY_AVAILABLE (Discharging)" :
-                                               batt.Status == HeadsetControlNative.BatteryStatus.Unavailable ? "BATTERY_UNAVAILABLE (Offline / Standby)" :
-                                               batt.Status.ToString();
+                            string statusText = isCharging ? "BATTERY_CHARGING (Charging ⚡)" :
+                                               isAvailable ? "BATTERY_AVAILABLE (Discharging)" :
+                                               (batt.Status == HeadsetControlNative.BatteryStatus.Unavailable || rawStatus == 0 || rawStatus == -1) ? "BATTERY_UNAVAILABLE (Offline / Standby)" :
+                                               string.Format("{0} ({1})", batt.Status, rawStatus);
 
                             if (isOnline)
                             {
@@ -293,7 +296,7 @@ namespace HeadsetControlTaskbarBatteryIndicator
                                 {
                                     newState.IsConnected = true;
                                     newState.BatteryLevel = batt.LevelPercent;
-                                    newState.IsCharging = (batt.Status == HeadsetControlNative.BatteryStatus.Charging);
+                                    newState.IsCharging = isCharging;
                                     newState.VoltageMv = batt.VoltageMv;
                                     newState.TimeToFullMin = batt.TimeToFullMin;
                                     newState.TimeToEmptyMin = batt.TimeToEmptyMin;
